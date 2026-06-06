@@ -332,7 +332,7 @@ export default function EligibilityScreen() {
                 READY TO ASSESS
               </Small>
               <SummaryRow label="Diagnosis" value={diagnosis} />
-              {age && <SummaryRow label="Age" value={age} />}
+              {age ? <SummaryRow label="Age" value={age} /> : null}
               <SummaryRow label="Scale" value={`${scale} ${functionalScore}`} />
               <SummaryRow label="Indicators" value={`${indicators.length} selected`} />
             </Card>

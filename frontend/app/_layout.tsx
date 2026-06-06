@@ -34,6 +34,8 @@ export default function RootLayout() {
             <Stack.Screen name="compliance" options={{ title: 'Compliance & Ethics' }} />
             <Stack.Screen name="faq" options={{ title: 'FAQ' }} />
             <Stack.Screen name="eligibility" options={{ title: 'Eligibility Quick Check' }} />
+            <Stack.Screen name="settings" options={{ title: 'Settings & Notifications' }} />
+            <Stack.Screen name="admin" options={{ title: 'Admin' }} />
           </Stack>
           <StatusBar style="light" />
         </View>

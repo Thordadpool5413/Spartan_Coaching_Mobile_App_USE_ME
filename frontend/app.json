@@ -15,7 +15,13 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.spartancoaching.app"
+      "bundleIdentifier": "com.spartancoaching.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": ["remote-notification"],
+        "NSUserNotificationUsageDescription": "Spartan Coaching uses notifications to send you a daily drill reminder so you can keep your streak."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -31,7 +37,14 @@
     },
     "plugins": [
       "expo-router",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/spartan-logo.png",
+          "color": "#ef4444"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": false

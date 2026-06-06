@@ -15,6 +15,7 @@ const NAV = [
   { route: '/manifesto', icon: 'flame-outline' as const, title: 'The Spartan Ethos' },
   { route: '/compliance', icon: 'shield-checkmark-outline' as const, title: 'Compliance & Ethics' },
   { route: '/faq', icon: 'help-circle-outline' as const, title: 'FAQ' },
+  { route: '/settings', icon: 'notifications-outline' as const, title: 'Notifications & Settings' },
 ];
 
 export default function MoreTab() {

@@ -272,6 +272,103 @@ class TestEligibility:
         r = api_client.post(f"{base_url}/api/eligibility/assess", json={"age": 70}, timeout=20)
         assert r.status_code == 422
 
+# ---------- Admin (token-protected) ----------
+ADMIN_TOKEN = "spartan-admin-2026"
+
+
+class TestAdmin:
+    def test_overview_no_auth_401(self, api_client, base_url):
+        r = api_client.get(f"{base_url}/api/admin/overview", timeout=20)
+        assert r.status_code == 401
+
+    def test_overview_wrong_token_403(self, api_client, base_url):
+        r = api_client.get(
+            f"{base_url}/api/admin/overview",
+            headers={"Authorization": "Bearer wrong-token"},
+            timeout=20,
+        )
+        assert r.status_code == 403
+
+    def test_overview_valid_token_200_structure(self, api_client, base_url):
+        r = api_client.get(
+            f"{base_url}/api/admin/overview",
+            headers={"Authorization": f"Bearer {ADMIN_TOKEN}"},
+            timeout=20,
+        )
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert "generated_at" in data
+        c = data["contacts"]
+        for k in ("total", "today", "last_7_days", "last_30_days"):
+            assert k in c and isinstance(c[k], int)
+        e = data["eligibility_checks"]
+        for k in ("total", "last_7_days", "verdict_breakdown_30d", "top_diagnoses_30d"):
+            assert k in e
+        assert isinstance(e["verdict_breakdown_30d"], dict)
+        assert isinstance(e["top_diagnoses_30d"], list)
+        d = data["drills"]
+        assert "total_completions" in d and "unique_users" in d
+        a = data["ai_chat"]
+        assert "total" in a and "last_7_days" in a
+
+    def test_admin_contacts_no_pii_id(self, api_client, base_url):
+        # First create a contact so list is non-empty
+        unique_name = f"TEST_Admin_{uuid.uuid4().hex[:6]}"
+        api_client.post(
+            f"{base_url}/api/contact",
+            json={
+                "name": unique_name,
+                "email": "admin-test@example.com",
+                "message": "Admin contact list test entry",
+            },
+            timeout=30,
+        )
+        r = api_client.get(
+            f"{base_url}/api/admin/contacts",
+            headers={"Authorization": f"Bearer {ADMIN_TOKEN}"},
+            timeout=20,
+        )
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert "items" in data and "count" in data
+        assert isinstance(data["items"], list)
+        assert data["count"] == len(data["items"])
+        if data["items"]:
+            first = data["items"][0]
+            for f in ("id", "name", "email", "message", "created_at"):
+                assert f in first, f"Missing {f} in contact item"
+            assert "_id" not in first, "_id should be excluded"
+            # newest first — our just-created contact should be at the top
+            assert first["name"] == unique_name, f"Expected newest contact {unique_name} at top, got {first['name']}"
+
+    def test_admin_eligibility_no_pii(self, api_client, base_url):
+        # Create a fresh eligibility check
+        unique_dx = f"AdminTest-{uuid.uuid4().hex[:6]}"
+        r0 = api_client.post(
+            f"{base_url}/api/eligibility/assess",
+            json={"diagnosis": unique_dx, "indicators": ["a"]},
+            timeout=120,
+        )
+        assert r0.status_code == 200
+        r = api_client.get(
+            f"{base_url}/api/admin/eligibility",
+            headers={"Authorization": f"Bearer {ADMIN_TOKEN}"},
+            timeout=20,
+        )
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert "items" in data and "count" in data
+        if data["items"]:
+            first = data["items"][0]
+            for f in ("verdict", "diagnosis", "indicators_count", "created_at"):
+                assert f in first, f"Missing {f} in eligibility item"
+            assert "_id" not in first
+            forbidden = {"name", "email", "phone", "age", "patient_name", "patient_id", "recentEvents", "notes"}
+            assert not forbidden.intersection(set(first.keys())), f"PII leaked: {forbidden.intersection(set(first.keys()))}"
+            # Newest first
+            assert first["diagnosis"] == unique_dx, f"Expected newest {unique_dx} at top, got {first['diagnosis']}"
+
+
     def test_eligibility_persists_anonymously(self, api_client, base_url):
         """Verify record is inserted in eligibility_checks with no PII fields."""
         import os

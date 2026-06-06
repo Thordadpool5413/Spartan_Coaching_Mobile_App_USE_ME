@@ -38,6 +38,7 @@ RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
 CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL", "nick@spartanhospicecoaching.com")
 LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-4o")
 LLM_MODEL_FAST = os.environ.get("LLM_MODEL_FAST", "gpt-4o-mini")
+ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "spartan-admin")
 
 if RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
@@ -539,6 +540,107 @@ async def eligibility_assess(req: EligibilityRequest):
         "created_at": now_iso(),
     })
     return {"verdict": verdict, "summary": summary}
+
+
+# ---------- Admin (lightweight, token-protected) ----------
+from fastapi import Header, Depends
+
+
+def require_admin(authorization: Optional[str] = Header(default=None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing admin token")
+    token = authorization.split(" ", 1)[1].strip()
+    if token != ADMIN_TOKEN:
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+    return True
+
+
+@api.get("/admin/overview")
+async def admin_overview(_: bool = Depends(require_admin)):
+    from datetime import timedelta
+    now = datetime.now(timezone.utc)
+    cutoffs = {
+        "today": (now - timedelta(days=1)).isoformat(),
+        "week": (now - timedelta(days=7)).isoformat(),
+        "month": (now - timedelta(days=30)).isoformat(),
+    }
+
+    async def count_since(collection, since):
+        return await collection.count_documents({"created_at": {"$gte": since}})
+
+    contacts_total = await db.contacts.count_documents({})
+    contacts_today = await count_since(db.contacts, cutoffs["today"])
+    contacts_week = await count_since(db.contacts, cutoffs["week"])
+    contacts_month = await count_since(db.contacts, cutoffs["month"])
+
+    elig_total = await db.eligibility_checks.count_documents({})
+    elig_week = await count_since(db.eligibility_checks, cutoffs["week"])
+
+    # Verdict breakdown (last 30 days)
+    verdict_pipeline = [
+        {"$match": {"created_at": {"$gte": cutoffs["month"]}}},
+        {"$group": {"_id": "$verdict", "count": {"$sum": 1}}},
+    ]
+    verdict_breakdown = {doc["_id"]: doc["count"] async for doc in db.eligibility_checks.aggregate(verdict_pipeline)}
+
+    # Top diagnoses (last 30 days)
+    diag_pipeline = [
+        {"$match": {"created_at": {"$gte": cutoffs["month"]}}},
+        {"$group": {"_id": "$diagnosis", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 8},
+    ]
+    top_diagnoses = [{"diagnosis": d["_id"], "count": d["count"]} async for d in db.eligibility_checks.aggregate(diag_pipeline)]
+
+    # Drill completions
+    drills_total = await db.drill_completions.count_documents({})
+    unique_drillers_pipeline = [
+        {"$group": {"_id": "$deviceId"}},
+        {"$count": "uniq"},
+    ]
+    uniq_drillers_doc = await db.drill_completions.aggregate(unique_drillers_pipeline).to_list(length=1)
+    unique_drillers = uniq_drillers_doc[0]["uniq"] if uniq_drillers_doc else 0
+
+    chat_total = await db.chat_logs.count_documents({})
+    chat_week = await count_since(db.chat_logs, cutoffs["week"])
+
+    return {
+        "generated_at": now.isoformat(),
+        "contacts": {
+            "total": contacts_total,
+            "today": contacts_today,
+            "last_7_days": contacts_week,
+            "last_30_days": contacts_month,
+        },
+        "eligibility_checks": {
+            "total": elig_total,
+            "last_7_days": elig_week,
+            "verdict_breakdown_30d": verdict_breakdown,
+            "top_diagnoses_30d": top_diagnoses,
+        },
+        "drills": {
+            "total_completions": drills_total,
+            "unique_users": unique_drillers,
+        },
+        "ai_chat": {
+            "total": chat_total,
+            "last_7_days": chat_week,
+        },
+    }
+
+
+@api.get("/admin/contacts")
+async def admin_contacts(_: bool = Depends(require_admin), limit: int = 50):
+    cursor = db.contacts.find({}, {"_id": 0}).sort("created_at", -1).limit(limit)
+    items = [doc async for doc in cursor]
+    return {"items": items, "count": len(items)}
+
+
+@api.get("/admin/eligibility")
+async def admin_eligibility(_: bool = Depends(require_admin), limit: int = 100):
+    cursor = db.eligibility_checks.find({}, {"_id": 0}).sort("created_at", -1).limit(limit)
+    items = [doc async for doc in cursor]
+    return {"items": items, "count": len(items)}
 
 
 # Mount router

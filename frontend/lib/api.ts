@@ -118,6 +118,35 @@ export async function assessEligibility(payload: EligibilityPayload) {
   return data as { verdict: EligibilityVerdict; summary: string };
 }
 
+// ----- Admin -----
+export type AdminOverview = {
+  generated_at: string;
+  contacts: { total: number; today: number; last_7_days: number; last_30_days: number };
+  eligibility_checks: {
+    total: number;
+    last_7_days: number;
+    verdict_breakdown_30d: Record<string, number>;
+    top_diagnoses_30d: { diagnosis: string; count: number }[];
+  };
+  drills: { total_completions: number; unique_users: number };
+  ai_chat: { total: number; last_7_days: number };
+};
+
+export async function adminOverview(token: string) {
+  const { data } = await api.get('/admin/overview', { headers: { Authorization: `Bearer ${token}` } });
+  return data as AdminOverview;
+}
+
+export async function adminContacts(token: string) {
+  const { data } = await api.get('/admin/contacts', { headers: { Authorization: `Bearer ${token}` } });
+  return data as { items: any[]; count: number };
+}
+
+export async function adminEligibility(token: string) {
+  const { data } = await api.get('/admin/eligibility', { headers: { Authorization: `Bearer ${token}` } });
+  return data as { items: any[]; count: number };
+}
+
 export type MethodContent = {
   pillars: { id: string; title: string; description: string }[];
   subjects: {
