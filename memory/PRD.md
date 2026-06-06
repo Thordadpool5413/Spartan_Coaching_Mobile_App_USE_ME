@@ -24,7 +24,8 @@ User chose React Native / Expo conversion, all integrations needed, follow the b
 
 ## Implemented (Jan 2026)
 - 5-tab bottom navigation: Home, Method, AI Tools, Learn, More
-- **Home**: Hero with badge, Spartan logo, gradient title, primary CTAs, Today's drill card with streak, 6 tool cards grid, "The Real Problem" section, trust bullets, contact CTA
+- **Home**: Hero with badge, Spartan logo, gradient title, primary CTAs, Today's drill card with streak, **Hospice Eligibility Quick Check lead-magnet card**, 6 tool cards grid, "The Real Problem" section, trust bullets, contact CTA
+- **NEW: Hospice Eligibility Quick Check** (POST /api/eligibility/assess): 4-step guided clinical questionnaire (diagnosis → decline indicators → functional scale FAST/PPS/NYHA → recent events) that produces a shareable hospice-readiness summary aligned to Medicare LCDs. Verdict colored gradient card (Likely/Possible/Not Yet). Share to native share sheet, Talk to Nick CTA, restart. PII-free anonymous logging.
 - **Method**: Mission card, 3 expandable pillars (Discipline/Empathy/Strategy), 4 sequential subjects (Discovery/Connecting/Guiding/Commitment) with purpose/execution/measurable output, 5 fundamentals, 6 ethics points
 - **AI Tools tab**: List of all 6 AI tools
 - **Learn tab**: Knowledge Base/Drills/Role-Play tiles + 4 article previews
@@ -52,8 +53,8 @@ User chose React Native / Expo conversion, all integrations needed, follow the b
 - `POST /contact`
 
 ## Testing Status (Jan 2026)
-- Backend: 100% (20/20 tests) - automated via testing_agent_v3
-- Frontend: 100% (24/24 scenarios) - all flows verified end-to-end via Playwright
+- Backend: 100% (25/25 tests, including 5 new Eligibility tests) - automated via testing_agent_v3
+- Frontend: 100% (24+18 = 42 scenarios) - all flows verified end-to-end via Playwright
 
 ## P0/P1/P2 Backlog (deferred from Phase 1)
 - **P1** Admin panel (article CMS, contact viewer, role-play transcripts viewer)
