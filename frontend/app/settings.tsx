@@ -31,9 +31,13 @@ export default function SettingsScreen() {
   const router = useRouter();
   const [settings, setSettings] = useState<NotifSettings>({ enabled: false, hour: 8, minute: 0 });
   const [busy, setBusy] = useState(false);
+  const [permDenied, setPermDenied] = useState(false);
 
   useEffect(() => {
     getNotifSettings().then(setSettings);
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && 'Notification' in window) {
+      setPermDenied(Notification.permission === 'denied');
+    }
   }, []);
 
   const toggleEnable = async (val: boolean) => {
@@ -42,6 +46,7 @@ export default function SettingsScreen() {
       if (val) {
         const granted = await requestNotificationPermissions();
         if (!granted) {
+          setPermDenied(true);
           Alert.alert(
             'Permission denied',
             Platform.OS === 'web'
@@ -51,6 +56,7 @@ export default function SettingsScreen() {
           setBusy(false);
           return;
         }
+        setPermDenied(false);
         await scheduleDailyDrillReminder(settings.hour, settings.minute);
       } else {
         await cancelDailyDrillReminder();
@@ -130,6 +136,17 @@ export default function SettingsScreen() {
                   </Pressable>
                 );
               })}
+            </View>
+          </Card>
+        ) : null}
+
+        {permDenied && Platform.OS === 'web' ? (
+          <Card style={{ marginTop: spacing.m, backgroundColor: 'rgba(239, 68, 68, 0.08)', borderColor: palette.primary + '40' }}>
+            <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
+              <Ionicons name="alert-circle" size={20} color={palette.primary} />
+              <Small dim style={{ flex: 1 }}>
+                Notifications are blocked in your browser settings. Open your browser&apos;s site settings to re-enable them, then toggle the reminder back on.
+              </Small>
             </View>
           </Card>
         ) : null}

@@ -26,6 +26,9 @@ User chose React Native / Expo conversion, all integrations needed, follow the b
 - 5-tab bottom navigation: Home, Method, AI Tools, Learn, More
 - **Home**: Hero with badge, Spartan logo, gradient title, primary CTAs, Today's drill card with streak, **Hospice Eligibility Quick Check lead-magnet card**, 6 tool cards grid, "The Real Problem" section, trust bullets, contact CTA
 - **NEW: Hospice Eligibility Quick Check** (POST /api/eligibility/assess): 4-step guided clinical questionnaire (diagnosis → decline indicators → functional scale FAST/PPS/NYHA → recent events) that produces a shareable hospice-readiness summary aligned to Medicare LCDs. Verdict colored gradient card (Likely/Possible/Not Yet). Share to native share sheet, Talk to Nick CTA, restart. PII-free anonymous logging.
+- **NEW: Admin Dashboard** (`/admin`, token-protected via `ADMIN_TOKEN` env var): Token lock screen + 3 tabs — Overview (4 stat cards + verdict breakdown bar chart + top diagnoses list), Contacts (recent submissions with email-sent badge), Eligibility (recent checks with verdict color dots). AsyncStorage persistence + logout.
+- **NEW: Notifications & Settings** (`/settings`): Daily Drill Reminder toggle wired to `expo-notifications` with 9 time presets (6am/7am/7:30/8am/8:30/9am/12pm/5pm/8pm). Persists in AsyncStorage. Web fallback (uses Notification API; shows helper card if blocked in browser). On native iOS, schedules a repeating daily local notification. Admin access link.
+- **NEW: EAS Build config** (`/app/frontend/eas.json`) and **TestFlight deployment guide** (`/app/IOS_DEPLOYMENT.md`): production-ready iOS app.json (bundleIdentifier `com.spartancoaching.app`, push notification entitlements, encryption exemption), 3 EAS build profiles (development/preview/production), and a 6-step submission guide
 - **Method**: Mission card, 3 expandable pillars (Discipline/Empathy/Strategy), 4 sequential subjects (Discovery/Connecting/Guiding/Commitment) with purpose/execution/measurable output, 5 fundamentals, 6 ethics points
 - **AI Tools tab**: List of all 6 AI tools
 - **Learn tab**: Knowledge Base/Drills/Role-Play tiles + 4 article previews
@@ -71,6 +74,6 @@ User chose React Native / Expo conversion, all integrations needed, follow the b
 - **P3** Visitor analytics dashboard
 
 ## Next Tasks
-- Run `expo run:ios` to build a real iOS bundle and submit to TestFlight
-- Add push notifications via expo-notifications for daily drill nudges
-- Migrate RN Web `shadow*` style props to `boxShadow`, `props.pointerEvents` to `style.pointerEvents` for newer RN compatibility
+- Submit to TestFlight (steps documented in `/app/IOS_DEPLOYMENT.md`) — requires user's Apple Developer account
+- Production hardening: rotate `ADMIN_TOKEN`, restrict CORS, migrate Mongo to Atlas, verify Resend sending domain
+- Migrate RN Web `shadow*` style props to `boxShadow`, `props.pointerEvents` to `style.pointerEvents` (3rd-party deprecation cleanup)
