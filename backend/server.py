@@ -50,7 +50,7 @@ CORS_ALLOWED_ORIGINS = [
 if RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
 
-client = AsyncIOMotorClient(MONGO_URL)
+client = AsyncIOMotorClient(MONGO_URL, tlsCAFile=__import__("certifi").where() if MONGO_URL and "mongodb+srv" in MONGO_URL else None)
 db = client[DB_NAME]
 
 app = FastAPI(title="Spartan Coaching API")
