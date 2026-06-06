@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const BACKEND_URL =
   process.env.EXPO_PUBLIC_BACKEND_URL ||
-  'https://2a674369-c31a-4a86-a0c2-5398e9495a35.preview.emergentagent.com';
+  'https://spartan-coaching-api.onrender.com';
 
 export const api = axios.create({
   baseURL: `${BACKEND_URL}/api`,
