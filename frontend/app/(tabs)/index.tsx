@@ -99,6 +99,49 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
+        {/* Eligibility Quick Check - Lead Magnet */}
+        <View style={{ paddingHorizontal: spacing.l, marginBottom: spacing.l }}>
+          <Pressable
+            testID="home-eligibility-card"
+            onPress={() => router.push('/eligibility')}
+            style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }]}
+          >
+            <LinearGradient
+              colors={['#1f0b0b', '#2a0d0d', '#0a0a0b']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.eligCard}
+            >
+              <View style={styles.eligBadge}>
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: palette.primary }} />
+                <Text style={styles.eligBadgeText}>NEW · 60-SECOND TOOL</Text>
+              </View>
+              <H2 style={{ marginTop: spacing.s, marginBottom: spacing.s, color: '#fff' }}>
+                Hospice Eligibility{'\n'}<Text style={{ color: palette.primary }}>Quick Check</Text>
+              </H2>
+              <Body dim style={{ marginBottom: spacing.l }}>
+                A guided clinical snapshot — diagnosis, decline indicators, FAST/PPS — produces a shareable hospice-readiness summary aligned to Medicare LCDs.
+              </Body>
+              <View style={styles.eligStats}>
+                {[
+                  { n: '60', l: 'seconds' },
+                  { n: '10', l: 'diagnoses' },
+                  { n: 'LCD', l: 'aligned' },
+                ].map((s, i) => (
+                  <View key={i} style={styles.eligStat}>
+                    <Text style={styles.eligStatN}>{s.n}</Text>
+                    <Text style={styles.eligStatL}>{s.l}</Text>
+                  </View>
+                ))}
+              </View>
+              <View style={styles.eligCta}>
+                <Text style={styles.eligCtaText}>Start the check</Text>
+                <Ionicons name="arrow-forward" size={16} color={palette.primary} />
+              </View>
+            </LinearGradient>
+          </Pressable>
+        </View>
+
         {/* Tools */}
         <View style={{ paddingHorizontal: spacing.l }}>
           <SectionLabel>Spartan Coaching Tools</SectionLabel>
@@ -269,5 +312,53 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl,
     borderWidth: 1,
     borderColor: palette.cardBorder,
+  },
+  eligCard: {
+    padding: spacing.xl,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.35)',
+    overflow: 'hidden',
+  },
+  eligBadge: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.pill,
+    backgroundColor: palette.primaryTint,
+    borderWidth: 1,
+    borderColor: palette.primary + '50',
+  },
+  eligBadgeText: {
+    color: palette.primary,
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1.2,
+  },
+  eligStats: {
+    flexDirection: 'row',
+    gap: spacing.m,
+    marginBottom: spacing.l,
+    paddingVertical: spacing.m,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: 'rgba(239,68,68,0.15)',
+  },
+  eligStat: { flex: 1, alignItems: 'center' },
+  eligStatN: { color: palette.primary, fontSize: 22, fontWeight: '900', letterSpacing: -0.5 },
+  eligStatL: { color: palette.textDim, fontSize: 11, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
+  eligCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  eligCtaText: {
+    color: palette.primary,
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.2,
   },
 });

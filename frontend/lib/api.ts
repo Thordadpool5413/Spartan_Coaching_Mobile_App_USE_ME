@@ -101,6 +101,23 @@ export async function submitContact(payload: ContactPayload) {
   return data as { id: string; email_sent: boolean };
 }
 
+export type EligibilityVerdict = 'LIKELY' | 'POSSIBLE' | 'NOT_YET';
+
+export type EligibilityPayload = {
+  diagnosis: string;
+  age?: number;
+  indicators: string[];
+  functionalScale?: string;
+  functionalScore?: string;
+  recentEvents?: string;
+  notes?: string;
+};
+
+export async function assessEligibility(payload: EligibilityPayload) {
+  const { data } = await api.post('/eligibility/assess', payload);
+  return data as { verdict: EligibilityVerdict; summary: string };
+}
+
 export type MethodContent = {
   pillars: { id: string; title: string; description: string }[];
   subjects: {

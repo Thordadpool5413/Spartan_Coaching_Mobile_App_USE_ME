@@ -160,6 +160,16 @@ class ContactRequest(BaseModel):
     message: str = Field(..., min_length=5, max_length=4000)
 
 
+class EligibilityRequest(BaseModel):
+    diagnosis: str = Field(..., min_length=2, max_length=80)
+    age: Optional[int] = Field(default=None, ge=0, le=130)
+    indicators: List[str] = Field(default_factory=list)
+    functionalScore: Optional[str] = Field(default=None, max_length=20)
+    functionalScale: Optional[str] = Field(default=None, max_length=20)  # 'FAST' or 'PPS' or 'KPS'
+    recentEvents: Optional[str] = Field(default=None, max_length=800)
+    notes: Optional[str] = Field(default=None, max_length=800)
+
+
 # ---------- Health ----------
 @api.get("/health", response_model=HealthResponse)
 async def health():
@@ -452,6 +462,83 @@ async def method_content():
             {"title": "No protected information leaves approved systems", "icon": "lock"},
         ],
     }
+
+
+# ---------- Eligibility Quick Check ----------
+ELIGIBILITY_SYSTEM = """You are a hospice eligibility clinical reviewer with deep expertise in Medicare Hospice Benefit Local Coverage Determinations (LCDs). You translate a quick clinical snapshot into a hospice-readiness assessment that a non-clinical referral source (SNF DON, hospital case manager, family member) can share with a hospice provider for clinical review.
+
+CRITICAL RULES:
+1. You do NOT make a final eligibility determination. Only a hospice medical director can do that. You only flag whether the picture is consistent with hospice criteria and what clinical confirmation would be needed.
+2. Always cite which LCD criteria are relevant for the stated diagnosis (e.g., FAST 7A for dementia; NYHA Class IV + EF <20% for CHF; pO2 <55 on room air for COPD; etc.).
+3. Be honest. If the picture is weak, say so plainly. Do not encourage premature referral.
+4. NEVER include patient identifiers. The user is working with a generic clinical sketch.
+5. Output should be practical and shareable: a hospice intake nurse should be able to read it in 60 seconds and know what to ask next."""
+
+ELIGIBILITY_PROMPT_TEMPLATE = """Generate a hospice-readiness summary based on this clinical snapshot. Use the exact section headings shown.
+
+## Snapshot
+- Primary diagnosis: {diagnosis}
+- Approximate age: {age}
+- Functional scale: {functional_scale} = {functional_score}
+- Documented decline indicators: {indicators}
+- Recent events: {recent_events}
+- Additional notes: {notes}
+
+## Required output structure
+
+## Readiness Verdict
+One of exactly these three labels followed by a single-sentence rationale:
+- "LIKELY ELIGIBLE — picture aligns with Medicare LCD criteria; recommend formal evaluation."
+- "POSSIBLE — some indicators present; clinical confirmation needed."
+- "NOT YET — insufficient decline indicators for hospice eligibility at this time."
+
+Start this section with a line "VERDICT: <one of LIKELY|POSSIBLE|NOT_YET>" then the human sentence.
+
+## LCD Alignment
+The 2-3 most relevant LCD criteria for {diagnosis} and how the snapshot maps (or fails to map) to each. Be specific with numbers and scales.
+
+## What to Confirm Clinically
+A short checklist (3-5 bullets) of the specific labs, scales, or documentation a hospice intake nurse should request from the referring clinician to confirm eligibility.
+
+## Suggested Next Step
+One concrete action the referral source can take in the next 24 hours (e.g., request a hospice info visit, share this summary with the hospice intake nurse, schedule a goals-of-care conversation, etc.).
+
+## Important Reminder
+A single sentence reminding the reader that final eligibility determination requires physician certification per Medicare guidelines and that this summary is an education tool only."""
+
+
+@api.post("/eligibility/assess")
+async def eligibility_assess(req: EligibilityRequest):
+    indicators_text = ", ".join(req.indicators) if req.indicators else "none reported"
+    prompt = ELIGIBILITY_PROMPT_TEMPLATE.format(
+        diagnosis=req.diagnosis,
+        age=req.age if req.age else "not specified",
+        functional_scale=req.functionalScale or "not specified",
+        functional_score=req.functionalScore or "not specified",
+        indicators=indicators_text,
+        recent_events=req.recentEvents or "none specified",
+        notes=req.notes or "none",
+    )
+    try:
+        text = await llm_complete(ELIGIBILITY_SYSTEM, prompt, model=LLM_MODEL_FAST)
+    except Exception as exc:
+        logger.exception("eligibility failed")
+        raise HTTPException(status_code=500, detail=f"AI generation failed: {exc}")
+    # Extract verdict
+    import re
+    m = re.search(r"VERDICT:\s*(LIKELY|POSSIBLE|NOT_YET)", text, re.IGNORECASE)
+    verdict = m.group(1).upper() if m else "POSSIBLE"
+    # Strip the VERDICT: line
+    summary = re.sub(r"VERDICT:\s*(LIKELY|POSSIBLE|NOT_YET)\s*\n?", "", text, flags=re.IGNORECASE).strip()
+    # Save anonymously for analytics
+    await db.eligibility_checks.insert_one({
+        "id": str(uuid.uuid4()),
+        "diagnosis": req.diagnosis,
+        "verdict": verdict,
+        "indicators_count": len(req.indicators),
+        "created_at": now_iso(),
+    })
+    return {"verdict": verdict, "summary": summary}
 
 
 # Mount router

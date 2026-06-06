@@ -33,6 +33,7 @@ export default function RootLayout() {
             <Stack.Screen name="manifesto" options={{ title: 'The Spartan Ethos' }} />
             <Stack.Screen name="compliance" options={{ title: 'Compliance & Ethics' }} />
             <Stack.Screen name="faq" options={{ title: 'FAQ' }} />
+            <Stack.Screen name="eligibility" options={{ title: 'Eligibility Quick Check' }} />
           </Stack>
           <StatusBar style="light" />
         </View>

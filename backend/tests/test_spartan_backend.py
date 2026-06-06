@@ -215,3 +215,93 @@ class TestContact:
     def test_contact_validation_error(self, api_client, base_url):
         r = api_client.post(f"{base_url}/api/contact", json={"name": "x"}, timeout=20)
         assert r.status_code == 422
+
+
+# ---------- Eligibility Quick Check ----------
+class TestEligibility:
+    def test_eligibility_likely_dementia(self, api_client, base_url):
+        """Strong indicators + FAST 7A + age 86 should return LIKELY with LCD/FAST mention."""
+        payload = {
+            "diagnosis": "Dementia / Alzheimer's",
+            "age": 86,
+            "indicators": [
+                "Weight loss > 10% in 6 months",
+                "Recurrent infections (UTI, pneumonia, sepsis)",
+                "Decreased oral intake / dysphagia",
+            ],
+            "functionalScale": "FAST",
+            "functionalScore": "7A",
+            "recentEvents": "Two hospitalizations in past 4 months for sepsis",
+        }
+        r = api_client.post(f"{base_url}/api/eligibility/assess", json=payload, timeout=120)
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["verdict"] == "LIKELY", f"Expected LIKELY but got {data['verdict']}; summary={data['summary'][:300]}"
+        summary = data["summary"]
+        assert isinstance(summary, str) and len(summary) > 200
+        low = summary.lower()
+        assert "fast" in low, "Summary should mention FAST scale"
+        assert "lcd" in low or "medicare" in low, "Summary should mention LCD or Medicare guidelines"
+
+    def test_eligibility_weak_chf_not_likely(self, api_client, base_url):
+        """Weak inputs (1 vague indicator, age 60, NYHA III) should NOT be LIKELY."""
+        payload = {
+            "diagnosis": "CHF / Heart Failure",
+            "age": 60,
+            "indicators": ["Goals of care shifting toward comfort"],
+            "functionalScale": "NYHA",
+            "functionalScore": "Class III",
+        }
+        r = api_client.post(f"{base_url}/api/eligibility/assess", json=payload, timeout=120)
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["verdict"] in ("POSSIBLE", "NOT_YET"), f"Expected POSSIBLE or NOT_YET, got {data['verdict']}"
+        assert len(data["summary"]) > 100
+
+    def test_eligibility_empty_indicators_still_works(self, api_client, base_url):
+        """Minimal payload with just diagnosis should still 200 with a valid verdict."""
+        payload = {"diagnosis": "Cancer"}
+        r = api_client.post(f"{base_url}/api/eligibility/assess", json=payload, timeout=120)
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["verdict"] in ("LIKELY", "POSSIBLE", "NOT_YET")
+        assert isinstance(data["summary"], str) and len(data["summary"]) > 50
+
+    def test_eligibility_missing_diagnosis_422(self, api_client, base_url):
+        """Missing required diagnosis -> Pydantic 422."""
+        r = api_client.post(f"{base_url}/api/eligibility/assess", json={"age": 70}, timeout=20)
+        assert r.status_code == 422
+
+    def test_eligibility_persists_anonymously(self, api_client, base_url):
+        """Verify record is inserted in eligibility_checks with no PII fields."""
+        import os
+        from pymongo import MongoClient
+        mongo_url = os.environ.get("MONGO_URL")
+        db_name = os.environ.get("DB_NAME")
+        if not mongo_url or not db_name:
+            pytest.skip("MONGO_URL/DB_NAME not set")
+        mclient = MongoClient(mongo_url)
+        coll = mclient[db_name]["eligibility_checks"]
+        before = coll.count_documents({})
+
+        unique_dx = f"Cancer-{uuid.uuid4().hex[:6]}"
+        r = api_client.post(
+            f"{base_url}/api/eligibility/assess",
+            json={"diagnosis": unique_dx, "indicators": ["a", "b"]},
+            timeout=120,
+        )
+        assert r.status_code == 200, r.text
+        after = coll.count_documents({})
+        assert after == before + 1, f"Expected 1 new record, got delta {after - before}"
+
+        doc = coll.find_one({"diagnosis": unique_dx})
+        assert doc is not None
+        # Required anonymous fields
+        assert "verdict" in doc and doc["verdict"] in ("LIKELY", "POSSIBLE", "NOT_YET")
+        assert doc.get("indicators_count") == 2
+        assert "created_at" in doc
+        # No PII fields
+        forbidden = {"name", "email", "phone", "age", "patient_name", "patient_id", "recentEvents", "notes"}
+        leaked = forbidden.intersection(set(doc.keys()))
+        assert not leaked, f"PII fields leaked into eligibility_checks: {leaked}"
+        mclient.close()

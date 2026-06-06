@@ -9,6 +9,12 @@ import { H1, H3, Body, Small, SectionLabel } from '../../components/UI';
 
 const TOOLS = [
   {
+    route: '/eligibility',
+    icon: 'medical' as const,
+    title: 'Eligibility Quick Check',
+    desc: 'A 60-second guided clinical questionnaire that produces a shareable hospice-readiness summary aligned to Medicare LCDs.',
+  },
+  {
     route: '/ask',
     icon: 'sparkles' as const,
     title: 'Ask a Hospice Expert',
