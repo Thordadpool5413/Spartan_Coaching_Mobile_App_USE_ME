@@ -273,7 +273,26 @@ class TestEligibility:
         assert r.status_code == 422
 
 # ---------- Admin (token-protected) ----------
-ADMIN_TOKEN = "spartan-admin-2026"
+ADMIN_TOKEN = "JvAvVYHsxECbQDWzXttacXQAKcRlUrMnGkx3--UTS1o"
+OLD_ADMIN_TOKEN = "spartan-admin-2026"
+
+
+class TestAdminTokenRotation:
+    def test_old_token_rejected(self, api_client, base_url):
+        r = api_client.get(
+            f"{base_url}/api/admin/overview",
+            headers={"Authorization": f"Bearer {OLD_ADMIN_TOKEN}"},
+            timeout=20,
+        )
+        assert r.status_code == 403, f"Old token should be rejected, got {r.status_code}"
+
+    def test_new_token_accepted(self, api_client, base_url):
+        r = api_client.get(
+            f"{base_url}/api/admin/overview",
+            headers={"Authorization": f"Bearer {ADMIN_TOKEN}"},
+            timeout=20,
+        )
+        assert r.status_code == 200, f"New token should work, got {r.status_code}: {r.text}"
 
 
 class TestAdmin:

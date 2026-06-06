@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
   },
   dotPulse: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#22c55e' },
   badgeText: { color: '#86efac', fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
-  logo: { width: 64, height: 64, alignSelf: 'flex-start', marginBottom: spacing.m, opacity: 0.9 },
+  logo: { width: 200, height: 120, alignSelf: 'flex-start', marginBottom: spacing.m, marginLeft: -10 },
   heroTitle: {
     color: palette.primary,
     fontSize: 44,

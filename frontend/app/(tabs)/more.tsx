@@ -53,7 +53,7 @@ export default function MoreTab() {
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: palette.bg }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 120, padding: spacing.l }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.m, marginBottom: spacing.l }}>
-          <Image source={SPARTAN_LOGO} style={{ width: 44, height: 44 }} resizeMode="contain" />
+          <Image source={SPARTAN_LOGO} style={{ width: 80, height: 56 }} resizeMode="contain" />
           <View style={{ flex: 1 }}>
             <H1 style={{ fontSize: 26 }}>More</H1>
             <Small dim>About, services, contact</Small>

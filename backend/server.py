@@ -35,10 +35,17 @@ MONGO_URL = os.environ.get("MONGO_URL")
 DB_NAME = os.environ.get("DB_NAME")
 EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY")
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
+RESEND_FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL", "onboarding@resend.dev")
+RESEND_FROM_NAME = os.environ.get("RESEND_FROM_NAME", "Spartan Coaching App")
 CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL", "nick@spartanhospicecoaching.com")
 LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-4o")
 LLM_MODEL_FAST = os.environ.get("LLM_MODEL_FAST", "gpt-4o-mini")
 ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "spartan-admin")
+CORS_ALLOWED_ORIGINS = [
+    o.strip()
+    for o in os.environ.get("CORS_ALLOWED_ORIGINS", "*").split(",")
+    if o.strip()
+]
 
 if RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
@@ -51,7 +58,7 @@ api = APIRouter(prefix="/api")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -418,7 +425,7 @@ async def contact(req: ContactRequest):
 <p style="color:#888;font-size:12px;">Sent from the Spartan Coaching iOS app.</p>
 """
             resend.Emails.send({
-                "from": "Spartan Coaching App <onboarding@resend.dev>",
+                "from": f"{RESEND_FROM_NAME} <{RESEND_FROM_EMAIL}>",
                 "to": [CONTACT_EMAIL],
                 "reply_to": req.email,
                 "subject": f"New inquiry from {req.name} via Spartan Coaching app",

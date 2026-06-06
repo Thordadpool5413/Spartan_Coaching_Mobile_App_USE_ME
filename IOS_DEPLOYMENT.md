@@ -75,9 +75,12 @@ On whichever backend host you choose, set:
 - `MONGO_URL` — production MongoDB connection string (e.g., MongoDB Atlas)
 - `DB_NAME=spartan_coaching`
 - `EMERGENT_LLM_KEY` — for OpenAI access
-- `RESEND_API_KEY=re_Mqvb4rvP_NAoADg62xCfqdDvwkXajJwRz`
+- `RESEND_API_KEY` — Resend API key
+- `RESEND_FROM_EMAIL=noreply@spartanhospicecoaching.com` (after domain verification)
+- `RESEND_FROM_NAME=Spartan Coaching`
 - `CONTACT_EMAIL=nick@spartanhospicecoaching.com`
-- `ADMIN_TOKEN` — pick a strong secret for admin dashboard auth
+- `ADMIN_TOKEN` — strong random secret (currently rotated to a 32-byte URL-safe token; change in `/app/backend/.env`)
+- `CORS_ALLOWED_ORIGINS` — comma-separated list of origins, e.g. `https://app.spartanhospicecoaching.com,https://admin.spartanhospicecoaching.com`
 
 ## Custom App Store assets you'll need
 - 1024×1024 App Icon (currently using the Spartan logo at `/app/frontend/assets/images/spartan-logo.png`)
@@ -94,10 +97,60 @@ On whichever backend host you choose, set:
 - OpenAI: pay-as-you-go via Emergent LLM key
 
 ## Production hardening checklist
-- [ ] Replace `ADMIN_TOKEN=spartan-admin-2026` with a strong random secret
-- [ ] Set `CORS allow_origins` to your real domain(s) instead of `["*"]`
-- [ ] Switch MongoDB from local to Atlas with username/password auth
-- [ ] Add Resend domain verification (so emails come from `@spartanhospicecoaching.com`, not `onboarding@resend.dev`)
+- [x] `ADMIN_TOKEN` rotated to a 32-byte URL-safe secret (`JvAvVYHsxECbQDWzXttacXQAKcRlUrMnGkx3--UTS1o`). Rotate again before going live.
+- [x] CORS restricted via `CORS_ALLOWED_ORIGINS` env var — currently set to the preview domain + localhost. Update to your production domain(s) before launch.
+- [x] Resend `from` address is configurable via `RESEND_FROM_EMAIL` / `RESEND_FROM_NAME` env vars (currently `onboarding@resend.dev` — see Resend Domain Verification below).
+- [ ] Migrate MongoDB to Atlas (see MongoDB Atlas Migration below)
+- [ ] Verify Resend sending domain (see Resend Domain Verification below)
 - [ ] Add Sentry or similar error tracking in `app/_layout.tsx`
 - [ ] Set `expo-application` version to track installs
 - [ ] Submit App Privacy answers truthfully (this app does collect optional email/phone via contact form)
+
+## MongoDB Atlas Migration
+
+The local MongoDB instance in this preview environment is fine for testing but not for production. Atlas gives you a managed, replicated MongoDB cluster with free 512 MB tier.
+
+### Steps
+1. Sign up at https://www.mongodb.com/cloud/atlas
+2. Create a new project → **Build a Database** → **M0 Free tier**
+3. Choose AWS, your nearest region
+4. Click **Create**. Wait ~3 minutes for the cluster to provision.
+5. Under **Security → Database Access**, create a user:
+   - Username: `spartan_app`
+   - Auth: SCRAM with a strong password (save it)
+   - Built-in role: `Read and write to any database`
+6. Under **Security → Network Access**, click **Add IP Address**:
+   - For development: `0.0.0.0/0` (any IP)
+   - For production: restrict to your backend host's static IP
+7. Under **Database → Connect → Drivers**, copy the connection string. It looks like:
+   ```
+   mongodb+srv://spartan_app:<password>@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority
+   ```
+8. On your production backend host, set:
+   ```
+   MONGO_URL=mongodb+srv://spartan_app:YOUR_PASSWORD@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority&appName=SpartanCoaching
+   DB_NAME=spartan_coaching
+   ```
+9. **No code change required** — the FastAPI backend already reads from `MONGO_URL`/`DB_NAME` env vars.
+10. (Optional) Seed test data by manually running a contact form submission through the live app, then verify in Atlas → Database → Collections that you see `contacts`, `eligibility_checks`, `drill_completions`, `chat_logs`.
+
+## Resend Domain Verification
+
+Currently emails are sent from `onboarding@resend.dev`. To send from your own domain (so emails don't land in spam):
+
+### Steps
+1. Log in to https://resend.com → **Domains** → **Add Domain**
+2. Enter `spartanhospicecoaching.com` (or whichever sending domain Nick controls)
+3. Resend will give you 3 DNS records to add to your domain registrar:
+   - 1 SPF TXT record (e.g., `send.spartanhospicecoaching.com → v=spf1 include:_spf.resend.com ~all`)
+   - 1 DKIM TXT record
+   - 1 DMARC TXT record (optional but recommended)
+4. Add those records to your DNS provider (Cloudflare/GoDaddy/Namecheap/etc.)
+5. Click **Verify Domain** in Resend. Verification can take 15 minutes to 24 hours depending on DNS propagation.
+6. Once verified, update your backend env vars:
+   ```
+   RESEND_FROM_EMAIL=noreply@spartanhospicecoaching.com
+   RESEND_FROM_NAME=Spartan Coaching
+   ```
+7. Restart the backend. New contact-form emails will come from your verified domain.
+8. (Optional) Add a `reply_to` address that goes directly to Nick's inbox — the code already sets `reply_to` to the submitter's email so Nick can reply directly to leads.
