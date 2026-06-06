@@ -5,7 +5,19 @@ React Native / Expo iOS mobile app (Spartan Coaching - hospice sales coaching).
 - Backend: FastAPI on port 8001 (routes prefixed `/api`)
 - Frontend: Expo Web on port 3000
 - DB: MongoDB
-- Public URL: https://2a674369-c31a-4a86-a0c2-5398e9495a35.preview.emergentagent.com
+- Public URL: https://coaching-ios-build.preview.emergentagent.com
+
+## Stripe (TEST mode)
+- `STRIPE_API_KEY=sk_test_emergent` (Emergent's pre-loaded test key) — already in `/app/backend/.env`
+- Stripe test card to use on the hosted Checkout page: `4242 4242 4242 4242`, any future expiry, any CVC, any ZIP
+- Payment endpoints:
+  - POST /api/billing/checkout — body: {package_id: "coaching_30" | "coaching_60", origin_url, customer_name?, customer_email?, notes?}
+  - GET  /api/billing/status/{session_id}
+  - POST /api/webhook/stripe
+- Package prices (server-defined):
+  - coaching_30 → $40.00 USD (30-min Virtual Coaching Session)
+  - coaching_60 → $70.00 USD (60-min Virtual Coaching Session)
+- New collection: `payment_transactions` — fields: session_id, package_id, amount, currency, customer_name, customer_email, status, payment_status, email_sent
 
 ## No User Authentication for End Users
 This MVP does not require end-user login. All public-facing endpoints are open.

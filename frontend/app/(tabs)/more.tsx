@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ScrollView, View, Pressable, StyleSheet, TextInput, ActivityIndicator, Alert, Linking, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { palette, radius, spacing, typography } from '../../theme';
 import { Card, PrimaryButton, GhostButton, H1, H2, H3, Body, Small, SectionLabel } from '../../components/UI';
@@ -20,6 +20,7 @@ const NAV = [
 
 export default function MoreTab() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ interest?: string; message?: string }>();
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -30,6 +31,20 @@ export default function MoreTab() {
   });
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
+
+  // Prefill from query params (e.g. user clicked "Request a Quote" on a service)
+  useEffect(() => {
+    const interest = typeof params.interest === 'string' ? params.interest : Array.isArray(params.interest) ? params.interest[0] : '';
+    const message = typeof params.message === 'string' ? params.message : Array.isArray(params.message) ? params.message[0] : '';
+    if (interest || message) {
+      setForm((s) => ({
+        ...s,
+        serviceInterest: interest || s.serviceInterest,
+        message: message || s.message,
+      }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.interest, params.message]);
 
   const update = (k: keyof typeof form) => (v: string) => setForm((s) => ({ ...s, [k]: v }));
 

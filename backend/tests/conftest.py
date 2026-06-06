@@ -2,7 +2,13 @@ import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://2a674369-c31a-4a86-a0c2-5398e9495a35.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://coaching-ios-build.preview.emergentagent.com").rstrip("/")
+# Load backend .env so MONGO_URL/DB_NAME are available for DB-verification tests
+try:
+    from dotenv import load_dotenv  # type: ignore
+    load_dotenv("/app/backend/.env")
+except Exception:
+    pass
 
 
 @pytest.fixture(scope="session")

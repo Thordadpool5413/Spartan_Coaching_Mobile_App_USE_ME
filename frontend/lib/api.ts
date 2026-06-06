@@ -1,8 +1,25 @@
 import axios from 'axios';
+import { Platform } from 'react-native';
 
-const BACKEND_URL =
-  process.env.EXPO_PUBLIC_BACKEND_URL ||
-  'https://spartan-coaching-api.onrender.com';
+/**
+ * Resolve the backend base URL.
+ *
+ * - Web (dev preview & production): use same-origin `/api` so that Kubernetes ingress / Render
+ *   routes the call to the right FastAPI service. This lets the preview environment exercise
+ *   the locally-running backend with the latest code (including unreleased changes).
+ * - Native (iOS/Android builds via Expo): fall back to the explicit production backend URL
+ *   from EXPO_PUBLIC_BACKEND_URL since the app is offline from any web origin.
+ */
+function resolveBackendUrl(): string {
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin;
+  }
+  return (
+    process.env.EXPO_PUBLIC_BACKEND_URL || 'https://spartan-coaching-api.onrender.com'
+  );
+}
+
+const BACKEND_URL = resolveBackendUrl();
 
 export const api = axios.create({
   baseURL: `${BACKEND_URL}/api`,
@@ -165,4 +182,29 @@ export type MethodContent = {
 export async function getMethod() {
   const { data } = await api.get('/method');
   return data as MethodContent;
+}
+
+// ----- Billing / Stripe Checkout -----
+export type CheckoutPayload = {
+  package_id: 'coaching_30' | 'coaching_60';
+  origin_url: string;
+  customer_name?: string;
+  customer_email?: string;
+  notes?: string;
+};
+
+export async function createCheckout(payload: CheckoutPayload) {
+  const { data } = await api.post('/billing/checkout', payload);
+  return data as { url: string; session_id: string };
+}
+
+export async function getCheckoutStatus(sessionId: string) {
+  const { data } = await api.get(`/billing/status/${sessionId}`);
+  return data as {
+    session_id: string;
+    status: string;
+    payment_status: string;
+    amount_total: number;
+    currency: string;
+  };
 }

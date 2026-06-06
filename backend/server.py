@@ -18,6 +18,12 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 import resend
 from emergentintegrations.llm.chat import LlmChat, UserMessage
+from emergentintegrations.payments.stripe.checkout import (
+    StripeCheckout,
+    CheckoutSessionResponse,
+    CheckoutStatusResponse,
+    CheckoutSessionRequest,
+)
 from collections import defaultdict, deque
 import time as _time
 
@@ -43,6 +49,7 @@ CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL", "nick@spartanhospicecoaching.com
 LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-4o")
 LLM_MODEL_FAST = os.environ.get("LLM_MODEL_FAST", "gpt-4o-mini")
 ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "spartan-admin")
+STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY")
 CORS_ALLOWED_ORIGINS = [
     o.strip()
     for o in os.environ.get("CORS_ALLOWED_ORIGINS", "*").split(",")
@@ -714,6 +721,201 @@ async def admin_eligibility(_: bool = Depends(require_admin), limit: int = 100):
     cursor = db.eligibility_checks.find({}, {"_id": 0}).sort("created_at", -1).limit(limit)
     items = [doc async for doc in cursor]
     return {"items": items, "count": len(items)}
+
+
+# ---------- Billing / Stripe Checkout ----------
+# SECURITY: Packages and prices are defined ONLY on the server.
+# Frontend sends a package_id; backend looks up the real amount.
+COACHING_PACKAGES = {
+    "coaching_30": {
+        "name": "Virtual Coaching Session — 30 minutes",
+        "amount": 40.00,
+        "currency": "usd",
+        "duration_min": 30,
+    },
+    "coaching_60": {
+        "name": "Virtual Coaching Session — 60 minutes",
+        "amount": 70.00,
+        "currency": "usd",
+        "duration_min": 60,
+    },
+}
+
+
+class CheckoutRequest(BaseModel):
+    package_id: str
+    origin_url: str
+    customer_name: Optional[str] = Field(default=None, max_length=120)
+    customer_email: Optional[EmailStr] = None
+    notes: Optional[str] = Field(default=None, max_length=600)
+
+
+def _make_stripe(request: Request) -> StripeCheckout:
+    if not STRIPE_API_KEY:
+        raise HTTPException(status_code=503, detail="Payments are not configured.")
+    host_url = str(request.base_url).rstrip("/")
+    webhook_url = f"{host_url}/api/webhook/stripe"
+    return StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+
+
+@api.post("/billing/checkout")
+async def billing_checkout(req: CheckoutRequest, request: Request):
+    pkg = COACHING_PACKAGES.get(req.package_id)
+    if not pkg:
+        raise HTTPException(status_code=400, detail="Unknown package.")
+
+    origin = (req.origin_url or "").rstrip("/")
+    if not origin.startswith("http"):
+        raise HTTPException(status_code=400, detail="Invalid origin_url.")
+
+    success_url = f"{origin}/payment-success?session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{origin}/services"
+
+    stripe = _make_stripe(request)
+    metadata = {
+        "package_id": req.package_id,
+        "package_name": pkg["name"],
+        "duration_min": str(pkg["duration_min"]),
+        "customer_name": req.customer_name or "",
+        "customer_email": req.customer_email or "",
+        "notes": (req.notes or "")[:480],
+        "source": "spartan_coaching_app",
+    }
+
+    checkout_req = CheckoutSessionRequest(
+        amount=float(pkg["amount"]),
+        currency=pkg["currency"],
+        success_url=success_url,
+        cancel_url=cancel_url,
+        metadata=metadata,
+    )
+    try:
+        session: CheckoutSessionResponse = await stripe.create_checkout_session(checkout_req)
+    except Exception as exc:
+        logger.exception("stripe create_checkout_session failed")
+        raise HTTPException(status_code=502, detail=f"Stripe error: {exc}")
+
+    await db.payment_transactions.insert_one({
+        "id": str(uuid.uuid4()),
+        "session_id": session.session_id,
+        "package_id": req.package_id,
+        "package_name": pkg["name"],
+        "amount": float(pkg["amount"]),
+        "currency": pkg["currency"],
+        "customer_name": req.customer_name,
+        "customer_email": req.customer_email,
+        "notes": req.notes,
+        "metadata": metadata,
+        "status": "initiated",
+        "payment_status": "unpaid",
+        "email_sent": False,
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+    })
+    return {"url": session.url, "session_id": session.session_id}
+
+
+def _send_purchase_email(record: dict) -> Optional[str]:
+    """Notify Nick of a new paid coaching session. Returns error string on failure, None on success."""
+    if not RESEND_API_KEY:
+        return "resend not configured"
+    try:
+        pkg_name = record.get("package_name") or record.get("metadata", {}).get("package_name") or "Coaching Session"
+        amount = record.get("amount") or 0
+        currency = (record.get("currency") or "usd").upper()
+        cust_name = record.get("customer_name") or record.get("metadata", {}).get("customer_name") or "(not provided)"
+        cust_email = record.get("customer_email") or record.get("metadata", {}).get("customer_email") or "(not provided)"
+        notes = record.get("notes") or record.get("metadata", {}).get("notes") or "(none)"
+        sess = record.get("session_id", "")
+        html = f"""
+<h2>New Coaching Session Booked & Paid</h2>
+<p><strong>Package:</strong> {pkg_name}</p>
+<p><strong>Amount paid:</strong> ${amount:.2f} {currency}</p>
+<hr/>
+<p><strong>Customer name:</strong> {cust_name}</p>
+<p><strong>Customer email:</strong> {cust_email}</p>
+<p><strong>Notes / prep:</strong></p>
+<p style="white-space: pre-wrap;">{notes}</p>
+<hr/>
+<p style="color:#888;font-size:12px;">Stripe session: {sess}<br/>Reply to this email to coordinate scheduling.</p>
+"""
+        kwargs = {
+            "from": f"{RESEND_FROM_NAME} <{RESEND_FROM_EMAIL}>",
+            "to": [CONTACT_EMAIL],
+            "subject": f"New paid coaching booking — {pkg_name}",
+            "html": html,
+        }
+        if cust_email and "@" in str(cust_email):
+            kwargs["reply_to"] = cust_email
+        resend.Emails.send(kwargs)
+        return None
+    except Exception as exc:
+        logger.exception("resend purchase email failed")
+        return str(exc)
+
+
+async def _finalize_paid_session(session_id: str, payment_status: str, status_val: str, source: str):
+    """Idempotently finalize a transaction. Sends notification email on first success."""
+    rec = await db.payment_transactions.find_one({"session_id": session_id})
+    if not rec:
+        logger.warning("finalize: unknown session_id=%s (%s)", session_id, source)
+        return
+
+    update = {"payment_status": payment_status, "status": status_val, "updated_at": now_iso()}
+
+    already_emailed = bool(rec.get("email_sent"))
+    is_now_paid = payment_status == "paid"
+
+    if is_now_paid and not already_emailed:
+        err = _send_purchase_email(rec)
+        if err is None:
+            update["email_sent"] = True
+            update["email_error"] = None
+        else:
+            update["email_error"] = err
+
+    await db.payment_transactions.update_one({"session_id": session_id}, {"$set": update})
+
+
+@api.get("/billing/status/{session_id}")
+async def billing_status(session_id: str, request: Request):
+    stripe = _make_stripe(request)
+    try:
+        status_resp: CheckoutStatusResponse = await stripe.get_checkout_status(session_id)
+    except Exception as exc:
+        logger.exception("stripe get_checkout_status failed")
+        raise HTTPException(status_code=502, detail=f"Stripe error: {exc}")
+
+    await _finalize_paid_session(session_id, status_resp.payment_status, status_resp.status, source="polling")
+
+    return {
+        "session_id": session_id,
+        "status": status_resp.status,
+        "payment_status": status_resp.payment_status,
+        "amount_total": status_resp.amount_total,
+        "currency": status_resp.currency,
+    }
+
+
+@api.post("/webhook/stripe")
+async def stripe_webhook(request: Request):
+    body = await request.body()
+    sig = request.headers.get("Stripe-Signature", "")
+    stripe = _make_stripe(request)
+    try:
+        evt = await stripe.handle_webhook(body, sig)
+    except Exception as exc:
+        logger.exception("stripe webhook verify failed")
+        raise HTTPException(status_code=400, detail=f"Webhook error: {exc}")
+
+    if evt.session_id:
+        await _finalize_paid_session(
+            evt.session_id,
+            evt.payment_status or "unknown",
+            "complete" if evt.payment_status == "paid" else (evt.event_type or "event"),
+            source=f"webhook:{evt.event_type}",
+        )
+    return {"received": True}
 
 
 # Mount router

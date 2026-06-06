@@ -36,6 +36,7 @@ export default function RootLayout() {
             <Stack.Screen name="eligibility" options={{ title: 'Eligibility Quick Check' }} />
             <Stack.Screen name="settings" options={{ title: 'Settings & Notifications' }} />
             <Stack.Screen name="admin" options={{ title: 'Admin' }} />
+            <Stack.Screen name="payment-success" options={{ title: 'Booking Confirmation' }} />
           </Stack>
           <StatusBar style="light" />
         </View>
