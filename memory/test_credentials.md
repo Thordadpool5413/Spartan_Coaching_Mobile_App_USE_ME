@@ -12,13 +12,20 @@ This MVP does not require end-user login. All public-facing endpoints are open.
 - Drill streak tracking uses a per-device UUID stored in AsyncStorage (no PII).
 
 ## Admin Access
-- Token: **spartan-admin-2026** (configured in `/app/backend/.env` as `ADMIN_TOKEN`)
+- Token: **JvAvVYHsxECbQDWzXttacXQAKcRlUrMnGkx3--UTS1o** (rotated; configured in `/app/backend/.env` as `ADMIN_TOKEN`)
+- Old token `spartan-admin-2026` is now correctly rejected (returns 403)
 - Admin endpoints require `Authorization: Bearer <token>` header
 - Admin UI: open `/admin` in the app — token persists in AsyncStorage as `spartan_admin_token`
 
+## CORS
+- Restricted via `CORS_ALLOWED_ORIGINS` env var (comma-separated list)
+- Currently allows: preview URL + localhost:3000 + localhost:8081
+- Note: the Kubernetes ingress at the public preview URL overrides ACAO with `*` — that's expected for the preview environment. The FastAPI middleware enforces correctly when hit directly at localhost:8001 (and will be the gatekeeper in production deployments).
+
 ## Integrations Used
 - OpenAI GPT-4o / GPT-4o-mini via Emergent LLM key (chat, ask, objection, playbook, roleplay, roleplay feedback, eligibility)
-- Resend for contact form email — sends to `nick@spartanhospicecoaching.com`
+- Resend for contact form email — sends to `CONTACT_EMAIL` (nick@spartanhospicecoaching.com)
+  - Configurable via `RESEND_FROM_EMAIL` / `RESEND_FROM_NAME` env vars (default sandbox: onboarding@resend.dev)
 - `expo-notifications` for daily drill reminders (native iOS; web fallback)
 
 ## Key API Endpoints (use REACT_APP_BACKEND_URL prefix + /api)
@@ -46,13 +53,13 @@ This MVP does not require end-user login. All public-facing endpoints are open.
 - GET /api/admin/eligibility?limit=100
 
 ## Sample Test Inputs
-- Contact test: {"name":"QA Tester","email":"qa@example.com","message":"Testing the iOS app contact form"}
-- Ask test: {"question":"What is the FAST scale?"}
-- Eligibility test: {"diagnosis":"Dementia / Alzheimer's","age":86,"indicators":["Weight loss > 10% in 6 months","Recurrent infections (UTI, pneumonia, sepsis)"],"functionalScale":"FAST","functionalScore":"7A"}
-- Roleplay scenarioId values: cold_call_snf, physician_objection, family_consultation, hospital_discharge, assisted_living_admin, competitor_territory
+- Contact: {"name":"QA Tester","email":"qa@example.com","message":"Testing the iOS app contact form"}
+- Ask: {"question":"What is the FAST scale?"}
+- Eligibility: {"diagnosis":"Dementia / Alzheimer's","age":86,"indicators":["Weight loss > 10% in 6 months","Recurrent infections (UTI, pneumonia, sepsis)"],"functionalScale":"FAST","functionalScore":"7A"}
+- Roleplay scenarioId: cold_call_snf, physician_objection, family_consultation, hospital_discharge, assisted_living_admin, competitor_territory
 
 ## Frontend Notes
-- Expo Web has lazy route bundling: first navigation to a route compiles it (~5-15s).
-  Once warm, subsequent loads are instant.
+- Expo Web has lazy route bundling: first navigation to a route compiles it (~5-15s). Once warm, subsequent loads are instant.
 - All key interactive elements have `data-testid` attributes (kebab-case).
 - AsyncStorage keys: `spartan_device_id`, `spartan_admin_token`, `spartan_notif_enabled`, `spartan_notif_hour`, `spartan_notif_id`
+- Logo: `/app/frontend/assets/images/spartan-logo.png` (grunge stamp "SPARTAN COACHING", 2048×2048 PNG)
