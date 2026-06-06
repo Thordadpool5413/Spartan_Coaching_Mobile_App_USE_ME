@@ -3,7 +3,7 @@ import { ScrollView, View, StyleSheet, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { palette, radius, spacing, typography } from '../../theme';
+import { palette, radius, spacing } from '../../theme';
 import { Card, H1, H2, H3, Body, Small, SectionLabel } from '../../components/UI';
 import { getMethod, MethodContent } from '../../lib/api';
 

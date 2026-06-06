@@ -78,3 +78,8 @@ User chose React Native / Expo conversion, all integrations needed, follow the b
 - Submit to TestFlight (steps documented in `/app/IOS_DEPLOYMENT.md`) — requires user's Apple Developer account
 - Production hardening: rotate `ADMIN_TOKEN`, restrict CORS, migrate Mongo to Atlas, verify Resend sending domain
 - Migrate RN Web `shadow*` style props to `boxShadow`, `props.pointerEvents` to `style.pointerEvents` (3rd-party deprecation cleanup)
+- **Payments/Subscriptions** (proposed, Feb 2026): Stripe subscription tiers gating premium AI tools (Coach Chat, Role-Play, Playbook). Free tier = Ask + Daily Drills + Eligibility. Pro tier = unlimited everything.
+
+## Changelog
+- **Feb 2026** — Audit pass: removed unused imports (`typography` in eligibility.tsx & method.tsx; `Linking` in (tabs)/index.tsx). Lint clean. Backend health verified on Render. Atlas DB live.
+- **Jan 2026** — Migrated MongoDB → Atlas M0; deployed backend → Render; hardened CORS + admin token auth; built grunge "Stamp Slam" splash; built `/admin` dashboard; built Eligibility Quick Check lead-magnet.

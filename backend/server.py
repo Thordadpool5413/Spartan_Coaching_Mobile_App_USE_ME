@@ -11,13 +11,15 @@ from typing import Optional, List, Literal
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, APIRouter, HTTPException, status
+from fastapi import FastAPI, APIRouter, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, EmailStr
 from motor.motor_asyncio import AsyncIOMotorClient
 
 import resend
 from emergentintegrations.llm.chat import LlmChat, UserMessage
+from collections import defaultdict, deque
+import time as _time
 
 from content import (
     SPARTAN_SYSTEM_INSTRUCTION,
@@ -72,6 +74,16 @@ async def startup_validate():
     except Exception as exc:
         mongo_ok = False
         logger.error("MongoDB ping failed: %s", exc)
+    # Ensure indexes exist for fast admin queries and uniqueness
+    if mongo_ok:
+        try:
+            await db.contacts.create_index([("created_at", -1)])
+            await db.eligibility_checks.create_index([("created_at", -1)])
+            await db.chat_logs.create_index([("created_at", -1)])
+            await db.drill_completions.create_index([("deviceId", 1), ("dateKey", 1)], unique=True)
+            await db.drill_completions.create_index([("dateKey", -1)])
+        except Exception as exc:
+            logger.warning("Index creation skipped: %s", exc)
     logger.info(
         "Spartan Coaching API up | Mongo=%s (%s, %s) | CORS=%s | Resend=%s (from %s) | Admin=%s",
         "Atlas" if is_atlas else "Local/Other",
@@ -95,6 +107,27 @@ app.add_middleware(
 # ---------- Helpers ----------
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+# In-memory IP rate limiter for AI endpoints.
+# Window: 60 seconds, max 30 AI requests per IP.
+_RATE_WINDOW_SECONDS = 60
+_RATE_MAX_REQUESTS = 30
+_rate_buckets: dict[str, deque] = defaultdict(deque)
+
+
+def rate_limit_ai(request: "Request") -> None:
+    ip = request.client.host if request.client else "unknown"
+    now = _time.time()
+    bucket = _rate_buckets[ip]
+    while bucket and now - bucket[0] > _RATE_WINDOW_SECONDS:
+        bucket.popleft()
+    if len(bucket) >= _RATE_MAX_REQUESTS:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Too many AI requests. Limit is {_RATE_MAX_REQUESTS} per minute. Try again shortly.",
+        )
+    bucket.append(now)
 
 
 async def llm_complete(system: str, user_text: str, model: str = LLM_MODEL_FAST, history: Optional[List[dict]] = None) -> str:
@@ -218,7 +251,8 @@ async def root():
 
 # ---------- AI: Chat ----------
 @api.post("/chat", response_model=ChatResponse)
-async def chat_endpoint(req: ChatRequest):
+async def chat_endpoint(req: ChatRequest, request: Request):
+    rate_limit_ai(request)
     history = [m.model_dump() for m in req.conversationHistory]
     try:
         text = await llm_complete(SPARTAN_SYSTEM_INSTRUCTION, req.prompt, model=LLM_MODEL, history=history)
@@ -236,7 +270,8 @@ async def chat_endpoint(req: ChatRequest):
 
 
 @api.post("/ask", response_model=ChatResponse)
-async def ask_endpoint(req: AskRequest):
+async def ask_endpoint(req: AskRequest, request: Request):
+    rate_limit_ai(request)
     prompt = f"A hospice growth professional asks: {req.question}\n\nGive a clear, concrete, field-ready answer (300-500 words). Use bullets or numbered steps where they help."
     try:
         text = await llm_complete(SPARTAN_SYSTEM_INSTRUCTION, prompt, model=LLM_MODEL_FAST)
@@ -248,7 +283,8 @@ async def ask_endpoint(req: AskRequest):
 
 # ---------- AI: Objection Handler ----------
 @api.post("/tools/objection", response_model=ChatResponse)
-async def objection_endpoint(req: ObjectionRequest):
+async def objection_endpoint(req: ObjectionRequest, request: Request):
+    rate_limit_ai(request)
     prompt = (
         f"OBJECTION HEARD: \"{req.objection}\"\n\n"
         f"{'CONTEXT: ' + req.context + chr(10) + chr(10) if req.context else ''}"
@@ -266,7 +302,8 @@ async def objection_endpoint(req: ObjectionRequest):
 
 # ---------- AI: Playbook Generator ----------
 @api.post("/tools/playbook", response_model=ChatResponse)
-async def playbook_endpoint(req: PlaybookRequest):
+async def playbook_endpoint(req: PlaybookRequest, request: Request):
+    rate_limit_ai(request)
     prompt = (
         f"SCENARIO: {req.scenario}\n"
         f"REFERRAL SOURCE TYPE: {req.referralSourceType or 'Unspecified'}\n"
@@ -302,7 +339,8 @@ async def roleplay_scenarios():
 
 
 @api.post("/roleplay/turn", response_model=ChatResponse)
-async def roleplay_turn(req: RoleplayRequest):
+async def roleplay_turn(req: RoleplayRequest, request: Request):
+    rate_limit_ai(request)
     scenario = ROLEPLAY_CHARACTERS.get(req.scenarioId)
     if not scenario:
         raise HTTPException(status_code=404, detail="Unknown scenario")
@@ -543,7 +581,8 @@ A single sentence reminding the reader that final eligibility determination requ
 
 
 @api.post("/eligibility/assess")
-async def eligibility_assess(req: EligibilityRequest):
+async def eligibility_assess(req: EligibilityRequest, request: Request):
+    rate_limit_ai(request)
     indicators_text = ", ".join(req.indicators) if req.indicators else "none reported"
     prompt = ELIGIBILITY_PROMPT_TEMPLATE.format(
         diagnosis=req.diagnosis,

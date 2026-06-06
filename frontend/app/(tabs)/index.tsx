@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, View, Text, StyleSheet, Image, Pressable, Linking } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { palette, radius, spacing, typography, shadow } from '../../theme';
-import { Card, PrimaryButton, GhostButton, Pill, H2, H3, Body, Small, SectionLabel } from '../../components/UI';
+import { palette, radius, spacing, typography } from '../../theme';
+import { Card, PrimaryButton, GhostButton, H2, H3, Body, Small, SectionLabel } from '../../components/UI';
 import { StampSlam } from '../../components/StampSlam';
 import { getTodayDrill, getDrillStats, DrillToday, DrillStats } from '../../lib/api';
 import { getDeviceId } from '../../lib/device';
@@ -247,7 +247,6 @@ const styles = StyleSheet.create({
   },
   dotPulse: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#22c55e' },
   badgeText: { color: '#86efac', fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
-  logo: { width: 200, height: 120, alignSelf: 'flex-start', marginBottom: spacing.m, marginLeft: -10 },
   heroTitle: {
     color: palette.primary,
     fontSize: 44,

@@ -15,7 +15,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Markdown from 'react-native-markdown-display';
-import { palette, radius, spacing, typography } from '../theme';
+import { palette, radius, spacing } from '../theme';
 import { Card, PrimaryButton, GhostButton, H1, H2, H3, Body, Small, SectionLabel } from '../components/UI';
 import { assessEligibility, EligibilityVerdict } from '../lib/api';
 import { markdownStyles } from '../components/markdownStyles';
