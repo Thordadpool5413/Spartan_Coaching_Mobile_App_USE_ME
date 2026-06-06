@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { palette, radius, spacing, typography, shadow } from '../../theme';
 import { Card, PrimaryButton, GhostButton, Pill, H2, H3, Body, Small, SectionLabel } from '../../components/UI';
+import { StampSlam } from '../../components/StampSlam';
 import { getTodayDrill, getDrillStats, DrillToday, DrillStats } from '../../lib/api';
 import { getDeviceId } from '../../lib/device';
 
@@ -53,7 +54,7 @@ export default function HomeScreen() {
             <Text style={styles.badgeText}>2026 Coaching Programs Open</Text>
             <Ionicons name="arrow-forward" size={12} color="#86efac" />
           </View>
-          <Image source={SPARTAN_LOGO} style={styles.logo} resizeMode="contain" />
+          <StampSlam source={SPARTAN_LOGO} width={220} height={132} onceKey="home_hero" style={{ alignSelf: 'flex-start', marginBottom: spacing.m, marginLeft: -10 }} />
           <Text style={styles.heroTitle}>Hospice Sales{'\n'}Coaching</Text>
           <Text style={styles.heroSub}>
             Eligible patients are not receiving hospice care because the right conversations are not happening. Spartan Coaching exists to close that gap, one prepared visit at a time.
