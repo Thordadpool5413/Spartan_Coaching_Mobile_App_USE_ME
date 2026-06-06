@@ -63,19 +63,7 @@ def now_iso() -> str:
 
 
 async def llm_complete(system: str, user_text: str, model: str = LLM_MODEL_FAST, history: Optional[List[dict]] = None) -> str:
-    """Non-streaming completion. history is list of {role: 'user'|'model', content: str}."""
-    session_id = str(uuid.uuid4())
-    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=session_id, system_message=system).with_model("openai", model)
-    # Pre-load history by sending past messages (workaround since LlmChat manages session memory in-process)
-    if history:
-        for msg in history:
-            role = msg.get("role")
-            content = (msg.get("content") or "").strip()
-            if not content:
-                continue
-            if role == "user":
-                # Send and discard - but this would also generate responses; better skip and embed history into prompt
-                pass
+    """Non-streaming completion. history is list of {role: 'user'|'model', content: str}. Falls back to LLM_MODEL_FAST on budget errors."""
     # Embed history as plain context if provided (lightweight approach)
     composed = user_text
     if history:
@@ -88,8 +76,22 @@ async def llm_complete(system: str, user_text: str, model: str = LLM_MODEL_FAST,
                 transcript_lines.append(f"{label}: {content}")
         if transcript_lines:
             composed = "Conversation so far:\n" + "\n".join(transcript_lines) + f"\n\nUser: {user_text}\n\nAssistant:"
-    reply = await chat.send_message(UserMessage(text=composed))
-    return reply if isinstance(reply, str) else str(reply)
+
+    async def _attempt(use_model: str) -> str:
+        session_id = str(uuid.uuid4())
+        chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=session_id, system_message=system).with_model("openai", use_model)
+        reply = await chat.send_message(UserMessage(text=composed))
+        return reply if isinstance(reply, str) else str(reply)
+
+    try:
+        return await _attempt(model)
+    except Exception as exc:
+        msg = str(exc).lower()
+        # Fall back to the fast model on budget/rate errors
+        if model != LLM_MODEL_FAST and ("budget" in msg or "rate" in msg or "quota" in msg or "429" in msg):
+            logger.warning("Falling back from %s to %s due to: %s", model, LLM_MODEL_FAST, exc)
+            return await _attempt(LLM_MODEL_FAST)
+        raise
 
 
 # ---------- Models ----------
@@ -334,34 +336,24 @@ async def complete_drill(req: DrillCompleteRequest):
 
 @api.get("/drills/stats/{device_id}")
 async def drill_stats(device_id: str):
+    from datetime import timedelta
     cursor = db.drill_completions.find({"deviceId": device_id}).sort("dateKey", -1)
     completions = []
     async for doc in cursor:
         completions.append({"dateKey": doc["dateKey"], "drillIndex": doc.get("drillIndex")})
-    # Compute streak
     today = datetime.now(timezone.utc).date()
     completion_dates = {datetime.strptime(c["dateKey"], "%Y-%m-%d").date() for c in completions}
+    # Streak: count consecutive days back from today (or yesterday if today not done)
     streak = 0
-    cursor_date = today
-    if today in completion_dates:
-        while cursor_date in completion_dates:
-            streak += 1
-            cursor_date = cursor_date.replace(day=cursor_date.day) if False else cursor_date
-            from datetime import timedelta
-            cursor_date = cursor_date - timedelta(days=1)
-    else:
-        # Allow yesterday-only streak too
-        from datetime import timedelta
-        cursor_date = today - timedelta(days=1)
-        while cursor_date in completion_dates:
-            streak += 1
-            cursor_date = cursor_date - timedelta(days=1)
+    cursor_date = today if today in completion_dates else today - timedelta(days=1)
+    while cursor_date in completion_dates:
+        streak += 1
+        cursor_date -= timedelta(days=1)
     # Heatmap: last 90 days
-    from datetime import timedelta
-    heatmap = []
-    for i in range(89, -1, -1):
-        d = today - timedelta(days=i)
-        heatmap.append({"date": d.isoformat(), "done": d in completion_dates})
+    heatmap = [
+        {"date": (today - timedelta(days=i)).isoformat(), "done": (today - timedelta(days=i)) in completion_dates}
+        for i in range(89, -1, -1)
+    ]
     return {
         "totalCompleted": len(completions),
         "streak": streak,

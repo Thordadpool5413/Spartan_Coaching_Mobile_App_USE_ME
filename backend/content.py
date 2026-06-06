@@ -163,6 +163,8 @@ ALL_DRILLS = [
     {"category": "Clinical Knowledge", "drill": "Pick one hospice eligibility diagnosis you are less confident discussing. Read the LCD criteria and write down the three most important decline indicators in your own words."},
     {"category": "Clinical Knowledge", "drill": "Practice explaining what a FAST Scale score of 7A means to a nurse who asks why their dementia patient might qualify for hospice. Keep it under 60 seconds."},
     {"category": "Clinical Knowledge", "drill": "Learn one new hospice-related clinical term this week. Write a simple explanation of it and practice using it correctly in a sentence."},
+    {"category": "Mindset", "drill": "Write down one limiting belief you have about hospice sales (e.g., 'physicians don't want to talk to me'). Now write three pieces of evidence from your own week that contradict it."},
+    {"category": "Compliance", "drill": "Review one anti-kickback or Stark guideline you handle frequently (gifts, education, sponsored meals). Write down where the line is in plain language and where your behavior this week sat relative to that line."},
 ]
 
 
