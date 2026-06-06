@@ -1,0 +1,22 @@
+"OneDrive/Documents/New project/HospiceRoadmapBackend/Hospice-Roadmap/artifacts/api-server/src/lib/openaiKey.ts"
+  s_93ca52e64603b2::t_3d1b536635a88d 1-15
+"OneDrive/Documents/New project/HospiceRoadmapBackend/Hospice-Roadmap/artifacts/api-server/src/routes/openai.ts"
+  s_93ca52e64603b2::t_9994b0de4d8596 1-34,38-67,69-508
+  s_93ca52e64603b2::t_27a9dd12a88d7e 35-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "c9f1be8a5508870af70d14ebca2b74b72c8dda14",
+  "prompts": {},
+  "sessions": {
+    "s_93ca52e64603b2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e9a2f-a557-7ac1-8077-1d53d01e0648",
+        "model": "gpt-5.4-mini"
+      },
+      "human_author": "Thordadpool5413 <nick.lynch.coaching@outlook.com>"
+    }
+  }
+}
