@@ -59,3 +59,7 @@ test_reports/
 attached_assets/
 *.tar.gz
 server/public/
+.env.*
+*.env
+credentials.json
+.credentials
