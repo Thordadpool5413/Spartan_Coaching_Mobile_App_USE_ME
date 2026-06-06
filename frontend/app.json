@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "Spartan Coaching",
+    "slug": "spartan-coaching",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/spartan-logo.png",
+    "scheme": "spartan",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/spartan-logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0a0a0a"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.spartancoaching.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/spartan-logo.png",
+        "backgroundColor": "#0a0a0a"
+      },
+      "package": "com.spartancoaching.app"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/images/spartan-logo.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}
