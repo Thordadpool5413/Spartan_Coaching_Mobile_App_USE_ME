@@ -3,6 +3,8 @@ import { Animated, Easing, Image, ImageSourcePropType, Platform, View, StyleShee
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+const USE_NATIVE_DRIVER = Platform.OS !== 'web';
+
 type StampSlamProps = {
   source: ImageSourcePropType;
   width: number;
@@ -60,12 +62,12 @@ export function StampSlam({ source, width, height, style, onceKey, delay = 0 }: 
       setTimeout(() => {
         if (cancelled) return;
         Animated.parallel([
-          Animated.timing(opacity, { toValue: 1, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 1, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: USE_NATIVE_DRIVER }),
           Animated.sequence([
-            Animated.timing(scale, { toValue: 0.92, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-            Animated.spring(scale, { toValue: 1, friction: 4, tension: 140, useNativeDriver: true }),
+            Animated.timing(scale, { toValue: 0.92, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: USE_NATIVE_DRIVER }),
+            Animated.spring(scale, { toValue: 1, friction: 4, tension: 140, useNativeDriver: USE_NATIVE_DRIVER }),
           ]),
-          Animated.timing(rotate, { toValue: 0, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+          Animated.timing(rotate, { toValue: 0, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: USE_NATIVE_DRIVER }),
         ]).start();
 
         // Impact haptic + splatter pulse at the slam moment
@@ -77,10 +79,10 @@ export function StampSlam({ source, width, height, style, onceKey, delay = 0 }: 
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
           }
           Animated.sequence([
-            Animated.timing(splatterOpacity, { toValue: 0.4, duration: 80, useNativeDriver: true }),
+            Animated.timing(splatterOpacity, { toValue: 0.4, duration: 80, useNativeDriver: USE_NATIVE_DRIVER }),
             Animated.parallel([
-              Animated.timing(splatterScale, { toValue: 1.6, duration: 400, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-              Animated.timing(splatterOpacity, { toValue: 0, duration: 400, useNativeDriver: true }),
+              Animated.timing(splatterScale, { toValue: 1.6, duration: 400, easing: Easing.out(Easing.cubic), useNativeDriver: USE_NATIVE_DRIVER }),
+              Animated.timing(splatterOpacity, { toValue: 0, duration: 400, useNativeDriver: USE_NATIVE_DRIVER }),
             ]),
           ]).start();
         }, 260);
