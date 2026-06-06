@@ -25,7 +25,7 @@ export default function PaymentSuccessScreen() {
       setPhase('error');
       return;
     }
-    const MAX_ATTEMPTS = 8;
+    const MAX_ATTEMPTS = 15;
     const INTERVAL_MS = 2000;
 
     const poll = async () => {

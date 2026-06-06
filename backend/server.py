@@ -800,6 +800,7 @@ async def billing_checkout(req: CheckoutRequest, request: Request):
         "session_id": session.session_id,
         "package_id": req.package_id,
         "package_name": pkg["name"],
+        "amount_cents": int(round(float(pkg["amount"]) * 100)),
         "amount": float(pkg["amount"]),
         "currency": pkg["currency"],
         "customer_name": req.customer_name,

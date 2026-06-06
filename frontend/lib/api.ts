@@ -2,13 +2,16 @@ import axios from 'axios';
 import { Platform } from 'react-native';
 
 /**
- * Resolve the backend base URL.
+ * Resolve the backend base URL at REQUEST time (not module-init).
  *
- * - Web (dev preview & production): use same-origin `/api` so that Kubernetes ingress / Render
- *   routes the call to the right FastAPI service. This lets the preview environment exercise
- *   the locally-running backend with the latest code (including unreleased changes).
+ * - Web (dev preview & production): use same-origin `/api` so the Kubernetes ingress /
+ *   Render routes the call to the right FastAPI service. This lets the preview environment
+ *   exercise the locally-running backend with the latest code (including unreleased changes).
  * - Native (iOS/Android builds via Expo): fall back to the explicit production backend URL
- *   from EXPO_PUBLIC_BACKEND_URL since the app is offline from any web origin.
+ *   from EXPO_PUBLIC_BACKEND_URL since the app has no web origin.
+ *
+ * Lazy resolution avoids the Metro-bundle-stale gotcha — every axios call recomputes the
+ * URL through the interceptor, so hot-reloads always pick up the new value.
  */
 function resolveBackendUrl(): string {
   if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.origin) {
@@ -19,12 +22,15 @@ function resolveBackendUrl(): string {
   );
 }
 
-const BACKEND_URL = resolveBackendUrl();
-
 export const api = axios.create({
-  baseURL: `${BACKEND_URL}/api`,
   timeout: 60000,
   headers: { 'Content-Type': 'application/json' },
+});
+
+// Recompute base URL per-request so it never goes stale across hot reloads.
+api.interceptors.request.use((config) => {
+  config.baseURL = `${resolveBackendUrl()}/api`;
+  return config;
 });
 
 export type ChatHistoryItem = { role: 'user' | 'model'; content: string };
