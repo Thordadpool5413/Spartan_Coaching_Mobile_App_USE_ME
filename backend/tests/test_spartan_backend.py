@@ -1,5 +1,6 @@
 """Spartan Coaching backend test suite - covers all endpoints."""
 import datetime as dt
+import os
 import uuid
 import pytest
 
@@ -210,7 +211,7 @@ class TestContact:
         assert r.status_code == 200, r.text
         data = r.json()
         assert "id" in data
-        assert data["email_sent"] is True
+        assert data["email_sent"] == True  # noqa: E712 — explicit bool match per test contract
 
     def test_contact_validation_error(self, api_client, base_url):
         r = api_client.post(f"{base_url}/api/contact", json={"name": "x"}, timeout=20)
@@ -273,8 +274,9 @@ class TestEligibility:
         assert r.status_code == 422
 
 # ---------- Admin (token-protected) ----------
-ADMIN_TOKEN = "JvAvVYHsxECbQDWzXttacXQAKcRlUrMnGkx3--UTS1o"
-OLD_ADMIN_TOKEN = "spartan-admin-2026"
+# Read tokens from environment to avoid hardcoding secrets in source control.
+ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "")
+OLD_ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN_OLD", "spartan-admin-2026")
 
 
 class TestAdminTokenRotation:

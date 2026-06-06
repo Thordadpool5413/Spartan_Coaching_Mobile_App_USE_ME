@@ -5,6 +5,7 @@ Powers a React Native / Expo iOS mobile app
 import os
 import uuid
 import logging
+import certifi
 from datetime import datetime, timezone
 from typing import Optional, List, Literal
 
@@ -59,7 +60,10 @@ CORS_ALLOWED_ORIGINS = [
 if RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
 
-client = AsyncIOMotorClient(MONGO_URL, tlsCAFile=__import__("certifi").where() if MONGO_URL and "mongodb+srv" in MONGO_URL else None)
+client = AsyncIOMotorClient(
+    MONGO_URL,
+    tlsCAFile=certifi.where() if MONGO_URL and "mongodb+srv" in MONGO_URL else None,
+)
 db = client[DB_NAME]
 
 app = FastAPI(title="Spartan Coaching API")
@@ -261,6 +265,7 @@ async def root():
 async def chat_endpoint(req: ChatRequest, request: Request):
     rate_limit_ai(request)
     history = [m.model_dump() for m in req.conversationHistory]
+    text: str = ""
     try:
         text = await llm_complete(SPARTAN_SYSTEM_INSTRUCTION, req.prompt, model=LLM_MODEL, history=history)
     except Exception as exc:
@@ -280,6 +285,7 @@ async def chat_endpoint(req: ChatRequest, request: Request):
 async def ask_endpoint(req: AskRequest, request: Request):
     rate_limit_ai(request)
     prompt = f"A hospice growth professional asks: {req.question}\n\nGive a clear, concrete, field-ready answer (300-500 words). Use bullets or numbered steps where they help."
+    text: str = ""
     try:
         text = await llm_complete(SPARTAN_SYSTEM_INSTRUCTION, prompt, model=LLM_MODEL_FAST)
     except Exception as exc:
@@ -299,6 +305,7 @@ async def objection_endpoint(req: ObjectionRequest, request: Request):
         "1. A clinical/evidence-based response\n2. An empathetic/relational response\n3. A practical/next-step response\n\n"
         "For each, give the exact words to say (2-4 sentences), then a one-line coaching note on why it works."
     )
+    text: str = ""
     try:
         text = await llm_complete(SPARTAN_SYSTEM_INSTRUCTION, prompt, model=LLM_MODEL_FAST)
     except Exception as exc:
@@ -326,6 +333,7 @@ async def playbook_endpoint(req: PlaybookRequest, request: Request):
         "## Follow-up plan (next 14 days)\n"
         "## Compliance reminder (one line, specific to this scenario)"
     )
+    text: str = ""
     try:
         text = await llm_complete(SPARTAN_SYSTEM_INSTRUCTION, prompt, model=LLM_MODEL)
     except Exception as exc:
@@ -362,6 +370,7 @@ async def roleplay_turn(req: RoleplayRequest, request: Request):
         "- Never mention that you are an AI or that this is a practice exercise."
     )
     history = [m.model_dump() for m in req.history]
+    text: str = ""
     try:
         text = await llm_complete(system, req.userMessage, model=LLM_MODEL_FAST, history=history)
     except Exception as exc:
@@ -387,6 +396,7 @@ async def roleplay_feedback(req: RoleplayFeedbackRequest):
         scenario_title=scenario["title"], conversation_text=transcript_text
     )
     system = "You are an expert hospice sales coach providing detailed, constructive feedback on practice role-play sessions. Be specific, reference actual quotes, and provide actionable advice based on the Spartan Method (Discipline, Empathy, Strategy). Be encouraging but honest."
+    text: str = ""
     try:
         text = await llm_complete(system, prompt, model=LLM_MODEL)
     except Exception as exc:
@@ -795,9 +805,12 @@ async def billing_checkout(req: CheckoutRequest, request: Request):
         logger.exception("stripe create_checkout_session failed")
         raise HTTPException(status_code=502, detail=f"Stripe error: {exc}")
 
+    session_id = session.session_id
+    session_url = session.url
+
     await db.payment_transactions.insert_one({
         "id": str(uuid.uuid4()),
-        "session_id": session.session_id,
+        "session_id": session_id,
         "package_id": req.package_id,
         "package_name": pkg["name"],
         "amount_cents": int(round(float(pkg["amount"]) * 100)),
@@ -813,7 +826,7 @@ async def billing_checkout(req: CheckoutRequest, request: Request):
         "created_at": now_iso(),
         "updated_at": now_iso(),
     })
-    return {"url": session.url, "session_id": session.session_id}
+    return {"url": session_url, "session_id": session_id}
 
 
 def _send_purchase_email(record: dict) -> Optional[str]:
@@ -887,14 +900,19 @@ async def billing_status(session_id: str, request: Request):
         logger.exception("stripe get_checkout_status failed")
         raise HTTPException(status_code=502, detail=f"Stripe error: {exc}")
 
-    await _finalize_paid_session(session_id, status_resp.payment_status, status_resp.status, source="polling")
+    payment_status = status_resp.payment_status
+    status_val = status_resp.status
+    amount_total = status_resp.amount_total
+    currency = status_resp.currency
+
+    await _finalize_paid_session(session_id, payment_status, status_val, source="polling")
 
     return {
         "session_id": session_id,
-        "status": status_resp.status,
-        "payment_status": status_resp.payment_status,
-        "amount_total": status_resp.amount_total,
-        "currency": status_resp.currency,
+        "status": status_val,
+        "payment_status": payment_status,
+        "amount_total": amount_total,
+        "currency": currency,
     }
 
 

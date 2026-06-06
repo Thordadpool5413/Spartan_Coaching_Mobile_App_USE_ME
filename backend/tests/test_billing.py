@@ -134,4 +134,4 @@ class TestPaymentTransactionsDB:
         assert doc["amount"] == 40.0
         assert doc["status"] == "initiated"
         assert doc["payment_status"] == "unpaid"
-        assert doc["email_sent"] is False
+        assert doc["email_sent"] == False  # noqa: E712 — explicit bool match per test contract
