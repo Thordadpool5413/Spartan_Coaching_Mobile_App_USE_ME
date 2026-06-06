@@ -37,6 +37,12 @@ export default function RootLayout() {
             <Stack.Screen name="settings" options={{ title: 'Settings & Notifications' }} />
             <Stack.Screen name="admin" options={{ title: 'Admin' }} />
             <Stack.Screen name="payment-success" options={{ title: 'Booking Confirmation' }} />
+            <Stack.Screen name="testimonials" options={{ title: 'Success Stories' }} />
+            <Stack.Screen name="articles" options={{ title: 'Articles & Insights' }} />
+            <Stack.Screen name="podcasts" options={{ title: 'Spartan Podcast' }} />
+            <Stack.Screen name="resources" options={{ title: 'Resource Library' }} />
+            <Stack.Screen name="programs" options={{ title: 'Training Programs' }} />
+            <Stack.Screen name="legal" options={{ title: 'Legal & Compliance' }} />
           </Stack>
           <StatusBar style="light" />
         </View>

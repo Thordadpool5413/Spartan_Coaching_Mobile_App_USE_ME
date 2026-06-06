@@ -35,6 +35,13 @@ from content import (
     ALL_DRILLS,
     KNOWLEDGE_BASE_ENTRIES,
 )
+from repo_content import (
+    TESTIMONIALS as REPO_TESTIMONIALS,
+    CASE_STUDIES as REPO_CASE_STUDIES,
+    ARTICLES as REPO_ARTICLES,
+    PODCASTS as REPO_PODCASTS,
+    RESOURCES as REPO_RESOURCES,
+)
 
 # ---------- Setup ----------
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -937,8 +944,30 @@ async def stripe_webhook(request: Request):
     return {"received": True}
 
 
+# ---------- Repo-mirrored static content (Testimonials / Articles / Podcasts / Resources) ----------
+@api.get("/content/testimonials")
+async def content_testimonials():
+    return {"testimonials": REPO_TESTIMONIALS, "caseStudies": REPO_CASE_STUDIES}
+
+
+@api.get("/content/articles")
+async def content_articles():
+    return {"articles": REPO_ARTICLES}
+
+
+@api.get("/content/podcasts")
+async def content_podcasts():
+    return {"podcasts": REPO_PODCASTS}
+
+
+@api.get("/content/resources")
+async def content_resources():
+    return {"resources": REPO_RESOURCES}
+
+
 # Mount router
 app.include_router(api)
+
 
 
 @app.on_event("shutdown")

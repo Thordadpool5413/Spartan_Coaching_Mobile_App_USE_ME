@@ -12,8 +12,14 @@ const SPARTAN_LOGO = require('../../assets/images/spartan-logo.png');
 const NAV = [
   { route: '/about', icon: 'information-circle-outline' as const, title: 'About Spartan' },
   { route: '/services', icon: 'briefcase-outline' as const, title: 'Services & Pricing' },
+  { route: '/programs', icon: 'school-outline' as const, title: 'Training Programs' },
+  { route: '/testimonials', icon: 'chatbubbles-outline' as const, title: 'Success Stories' },
+  { route: '/articles', icon: 'newspaper-outline' as const, title: 'Articles & Insights' },
+  { route: '/podcasts', icon: 'mic-outline' as const, title: 'Spartan Podcast' },
+  { route: '/resources', icon: 'folder-open-outline' as const, title: 'Resource Library' },
   { route: '/manifesto', icon: 'flame-outline' as const, title: 'The Spartan Ethos' },
   { route: '/compliance', icon: 'shield-checkmark-outline' as const, title: 'Compliance & Ethics' },
+  { route: '/legal', icon: 'document-text-outline' as const, title: 'Legal Documents' },
   { route: '/faq', icon: 'help-circle-outline' as const, title: 'FAQ' },
   { route: '/settings', icon: 'notifications-outline' as const, title: 'Notifications & Settings' },
 ];

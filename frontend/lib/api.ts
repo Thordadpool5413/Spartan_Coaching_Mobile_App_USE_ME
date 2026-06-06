@@ -214,3 +214,62 @@ export async function getCheckoutStatus(sessionId: string) {
     currency: string;
   };
 }
+
+// ----- Repo-mirrored static content -----
+export type Testimonial = {
+  id: string;
+  name: string;
+  title: string;
+  company: string;
+  quote: string;
+  outcome: string;
+  category: 'individual' | 'leadership' | 'corporate';
+  featured: boolean;
+};
+export type CaseStudy = {
+  id: string;
+  title: string;
+  clientLabel: string;
+  challenge: string;
+  solution: string;
+  results: string[];
+  category: 'individual' | 'leadership' | 'corporate';
+};
+export type Article = {
+  id: string;
+  title: string;
+  description: string;
+  linkedinUrl: string;
+  publishDate: string;
+  featured: boolean;
+};
+export type Podcast = {
+  id: string;
+  title: string;
+  description: string;
+  episodeNumber: number;
+  duration: string;
+};
+export type Resource = {
+  id: string;
+  title: string;
+  description: string;
+  category: 'script' | 'template' | 'checklist' | 'guide';
+};
+
+export async function getTestimonials() {
+  const { data } = await api.get('/content/testimonials');
+  return data as { testimonials: Testimonial[]; caseStudies: CaseStudy[] };
+}
+export async function getArticles() {
+  const { data } = await api.get('/content/articles');
+  return data as { articles: Article[] };
+}
+export async function getPodcasts() {
+  const { data } = await api.get('/content/podcasts');
+  return data as { podcasts: Podcast[] };
+}
+export async function getResources() {
+  const { data } = await api.get('/content/resources');
+  return data as { resources: Resource[] };
+}
