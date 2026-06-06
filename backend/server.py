@@ -56,6 +56,33 @@ db = client[DB_NAME]
 app = FastAPI(title="Spartan Coaching API")
 api = APIRouter(prefix="/api")
 
+
+@app.on_event("startup")
+async def startup_validate():
+    """Print a one-line config summary at startup so logs make production state obvious."""
+    is_atlas = MONGO_URL and ("mongodb+srv" in MONGO_URL or ".mongodb.net" in MONGO_URL)
+    db_host = (MONGO_URL or "").split("@")[-1].split("/")[0] if MONGO_URL else "(unset)"
+    cors_summary = "ALL" if CORS_ALLOWED_ORIGINS == ["*"] else f"{len(CORS_ALLOWED_ORIGINS)} origin(s)"
+    resend_status = "configured" if RESEND_API_KEY else "DISABLED"
+    resend_from = RESEND_FROM_EMAIL or "(default)"
+    admin_token_status = "rotated" if ADMIN_TOKEN and ADMIN_TOKEN != "spartan-admin" else "DEFAULT - rotate before prod"
+    try:
+        ping = await db.command("ping")
+        mongo_ok = ping.get("ok") == 1
+    except Exception as exc:
+        mongo_ok = False
+        logger.error("MongoDB ping failed: %s", exc)
+    logger.info(
+        "Spartan Coaching API up | Mongo=%s (%s, %s) | CORS=%s | Resend=%s (from %s) | Admin=%s",
+        "Atlas" if is_atlas else "Local/Other",
+        db_host,
+        "OK" if mongo_ok else "UNREACHABLE",
+        cors_summary,
+        resend_status,
+        resend_from,
+        admin_token_status,
+    )
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ALLOWED_ORIGINS,
