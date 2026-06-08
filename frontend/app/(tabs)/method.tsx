@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, View, StyleSheet, Pressable } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -34,7 +34,7 @@ export default function MethodScreen() {
         <View style={{ marginBottom: spacing.xxl }}>
           <SectionLabel>The Framework</SectionLabel>
           <H1>
-            The <H1 style={{ color: palette.primary }}>Spartan Method</H1>
+            The <Text style={{ color: palette.primary }}>Spartan Method</Text>
           </H1>
           <Body dim style={{ marginTop: spacing.m }}>
             A complete methodology for healthcare sales mastery. Value is discovered, translated, proven, and made official through four disciplined subjects, each governed by ethics that are non-negotiable.
