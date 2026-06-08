@@ -498,7 +498,7 @@ export default function ServicesScreen() {
 
             <PrimaryButton
               testID="book-submit"
-              label={submitting ? 'Redirecting to Stripe…' : `Pay & Book — $${bookPkg === 'coaching_30' ? 40 : 70}`}
+              label={submitting ? 'Redirecting to PayPal…' : `Pay & Book — $${bookPkg === 'coaching_30' ? 40 : 70}`}
               onPress={handleCheckout}
               disabled={submitting}
               icon={
@@ -510,7 +510,7 @@ export default function ServicesScreen() {
               }
             />
             <Small dim style={{ textAlign: 'center', marginTop: spacing.s }}>
-              Secure payment via Stripe. You will receive a receipt by email.
+              Secure payment via PayPal. You will receive a receipt by email.
             </Small>
           </View>
         </View>
