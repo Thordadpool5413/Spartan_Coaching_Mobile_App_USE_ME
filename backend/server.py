@@ -1,30 +1,30 @@
 """
 Spartan Coaching - FastAPI Backend
 Powers a React Native / Expo iOS mobile app
+Database : Replit PostgreSQL (asyncpg)
+AI       : OpenAI (openai library)
+Payments : Stripe (stripe library)
+Email    : Resend (resend library)
 """
 import os
 import uuid
 import logging
-import certifi
-from datetime import datetime, timezone
+import asyncio
+import re as _re
+from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Literal
 
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, APIRouter, HTTPException, status, Request
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, EmailStr
-from motor.motor_asyncio import AsyncIOMotorClient
 
+import asyncpg
 import resend
-from emergentintegrations.llm.chat import LlmChat, UserMessage
-from emergentintegrations.payments.stripe.checkout import (
-    StripeCheckout,
-    CheckoutSessionResponse,
-    CheckoutStatusResponse,
-    CheckoutSessionRequest,
-)
+import openai
+import stripe as stripe_lib
 from collections import defaultdict, deque
 import time as _time
 
@@ -43,21 +43,21 @@ from repo_content import (
     RESOURCES as REPO_RESOURCES,
 )
 
-# ---------- Setup ----------
+# ---------- Config ----------
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("spartan")
 
-MONGO_URL = os.environ.get("MONGO_URL")
-DB_NAME = os.environ.get("DB_NAME")
-EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY")
-RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
+DATABASE_URL      = os.environ.get("DATABASE_URL")
+OPENAI_API_KEY    = os.environ.get("OPENAI_API_KEY")
+RESEND_API_KEY    = os.environ.get("RESEND_API_KEY")
 RESEND_FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL", "onboarding@resend.dev")
-RESEND_FROM_NAME = os.environ.get("RESEND_FROM_NAME", "Spartan Coaching App")
-CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL", "nick@spartanhospicecoaching.com")
-LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-4o")
-LLM_MODEL_FAST = os.environ.get("LLM_MODEL_FAST", "gpt-4o-mini")
-ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "spartan-admin")
-STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY")
+RESEND_FROM_NAME  = os.environ.get("RESEND_FROM_NAME", "Spartan Coaching App")
+CONTACT_EMAIL     = os.environ.get("CONTACT_EMAIL", "nick@spartanhospicecoaching.com")
+LLM_MODEL         = os.environ.get("LLM_MODEL", "gpt-4o")
+LLM_MODEL_FAST    = os.environ.get("LLM_MODEL_FAST", "gpt-4o-mini")
+ADMIN_TOKEN       = os.environ.get("ADMIN_TOKEN", "spartan-admin")
+STRIPE_API_KEY         = os.environ.get("STRIPE_API_KEY")
+STRIPE_WEBHOOK_SECRET  = os.environ.get("STRIPE_WEBHOOK_SECRET")
 CORS_ALLOWED_ORIGINS = [
     o.strip()
     for o in os.environ.get("CORS_ALLOWED_ORIGINS", "*").split(",")
@@ -67,54 +67,18 @@ CORS_ALLOWED_ORIGINS = [
 if RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
 
-client = AsyncIOMotorClient(
-    MONGO_URL,
-    tlsCAFile=certifi.where() if MONGO_URL and "mongodb+srv" in MONGO_URL else None,
-    serverSelectionTimeoutMS=5000,
-    connectTimeoutMS=5000,
-    socketTimeoutMS=5000,
-)
-db = client[DB_NAME]
+if STRIPE_API_KEY:
+    stripe_lib.api_key = STRIPE_API_KEY
 
+openai_client: Optional[openai.AsyncOpenAI] = (
+    openai.AsyncOpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+)
+
+pool: Optional[asyncpg.Pool] = None
+
+# ---------- App ----------
 app = FastAPI(title="Spartan Coaching API")
 api = APIRouter(prefix="/api")
-
-
-@app.on_event("startup")
-async def startup_validate():
-    """Print a one-line config summary at startup so logs make production state obvious."""
-    is_atlas = MONGO_URL and ("mongodb+srv" in MONGO_URL or ".mongodb.net" in MONGO_URL)
-    db_host = (MONGO_URL or "").split("@")[-1].split("/")[0] if MONGO_URL else "(unset)"
-    cors_summary = "ALL" if CORS_ALLOWED_ORIGINS == ["*"] else f"{len(CORS_ALLOWED_ORIGINS)} origin(s)"
-    resend_status = "configured" if RESEND_API_KEY else "DISABLED"
-    resend_from = RESEND_FROM_EMAIL or "(default)"
-    admin_token_status = "rotated" if ADMIN_TOKEN and ADMIN_TOKEN != "spartan-admin" else "DEFAULT - rotate before prod"
-    try:
-        ping = await db.command("ping")
-        mongo_ok = ping.get("ok") == 1
-    except Exception as exc:
-        mongo_ok = False
-        logger.error("MongoDB ping failed: %s", exc)
-    # Ensure indexes exist for fast admin queries and uniqueness
-    if mongo_ok:
-        try:
-            await db.contacts.create_index([("created_at", -1)])
-            await db.eligibility_checks.create_index([("created_at", -1)])
-            await db.chat_logs.create_index([("created_at", -1)])
-            await db.drill_completions.create_index([("deviceId", 1), ("dateKey", 1)], unique=True)
-            await db.drill_completions.create_index([("dateKey", -1)])
-        except Exception as exc:
-            logger.warning("Index creation skipped: %s", exc)
-    logger.info(
-        "Spartan Coaching API up | Mongo=%s (%s, %s) | CORS=%s | Resend=%s (from %s) | Admin=%s",
-        "Atlas" if is_atlas else "Local/Other",
-        db_host,
-        "OK" if mongo_ok else "UNREACHABLE",
-        cors_summary,
-        resend_status,
-        resend_from,
-        admin_token_status,
-    )
 
 app.add_middleware(
     CORSMiddleware,
@@ -124,66 +88,183 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ---------- Database schema ----------
+_CREATE_TABLES = [
+    """
+    CREATE TABLE IF NOT EXISTS contacts (
+        id           TEXT PRIMARY KEY,
+        name         VARCHAR(120) NOT NULL,
+        email        VARCHAR(255) NOT NULL,
+        phone        VARCHAR(40),
+        company      VARCHAR(160),
+        service_interest VARCHAR(120),
+        message      TEXT NOT NULL,
+        email_sent   BOOLEAN DEFAULT FALSE,
+        email_error  TEXT,
+        created_at   TIMESTAMPTZ DEFAULT NOW()
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS eligibility_checks (
+        id               TEXT PRIMARY KEY,
+        diagnosis        VARCHAR(80) NOT NULL,
+        verdict          VARCHAR(20) NOT NULL,
+        indicators_count INTEGER DEFAULT 0,
+        created_at       TIMESTAMPTZ DEFAULT NOW()
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS chat_logs (
+        id         TEXT PRIMARY KEY,
+        prompt     TEXT,
+        response   TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS drill_completions (
+        id           TEXT PRIMARY KEY,
+        device_id    VARCHAR(255) NOT NULL,
+        date_key     VARCHAR(10)  NOT NULL,
+        drill_index  INTEGER,
+        completed_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE (device_id, date_key)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_dc_device ON drill_completions(device_id)",
+    "CREATE INDEX IF NOT EXISTS idx_dc_date   ON drill_completions(date_key)",
+    """
+    CREATE TABLE IF NOT EXISTS payment_transactions (
+        id             TEXT PRIMARY KEY,
+        session_id     VARCHAR(255) NOT NULL UNIQUE,
+        package_id     VARCHAR(100),
+        package_name   VARCHAR(200),
+        amount_cents   INTEGER,
+        amount         NUMERIC(10,2),
+        currency       VARCHAR(10),
+        customer_name  VARCHAR(120),
+        customer_email VARCHAR(255),
+        notes          TEXT,
+        status         VARCHAR(50)  DEFAULT 'initiated',
+        payment_status VARCHAR(50)  DEFAULT 'unpaid',
+        email_sent     BOOLEAN      DEFAULT FALSE,
+        email_error    TEXT,
+        created_at     TIMESTAMPTZ  DEFAULT NOW(),
+        updated_at     TIMESTAMPTZ  DEFAULT NOW()
+    )
+    """,
+]
+
+
+@app.on_event("startup")
+async def startup():
+    global pool
+    if not DATABASE_URL:
+        logger.error("DATABASE_URL is not set — database features will be unavailable")
+        return
+    try:
+        pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=10)
+        async with pool.acquire() as conn:
+            for stmt in _CREATE_TABLES:
+                await conn.execute(stmt)
+        logger.info("PostgreSQL pool ready")
+    except Exception as exc:
+        logger.error("PostgreSQL startup failed: %s", exc)
+
+    resend_status = "configured" if RESEND_API_KEY else "DISABLED"
+    ai_status     = "configured" if OPENAI_API_KEY else "DISABLED"
+    stripe_status = "configured" if STRIPE_API_KEY else "DISABLED"
+    admin_warn    = "" if (ADMIN_TOKEN and ADMIN_TOKEN != "spartan-admin") else " ⚠ DEFAULT token"
+    logger.info(
+        "Spartan API up | DB=%s | AI=%s | Stripe=%s | Resend=%s | Admin=%s%s",
+        "ok" if pool else "UNAVAILABLE",
+        ai_status, stripe_status, resend_status,
+        ADMIN_TOKEN[:6] + "…" if ADMIN_TOKEN else "(unset)",
+        admin_warn,
+    )
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    if pool:
+        await pool.close()
+
 
 # ---------- Helpers ----------
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-# In-memory IP rate limiter for AI endpoints.
-# Window: 60 seconds, max 30 AI requests per IP.
-_RATE_WINDOW_SECONDS = 60
-_RATE_MAX_REQUESTS = 30
+def _row_to_dict(row) -> dict:
+    result = {}
+    for k, v in dict(row).items():
+        if isinstance(v, datetime):
+            result[k] = v.isoformat()
+        else:
+            result[k] = v
+    return result
+
+
+# Rate limiter — 30 AI requests / 60 s per IP
+_RATE_WINDOW  = 60
+_RATE_MAX     = 30
 _rate_buckets: dict[str, deque] = defaultdict(deque)
 
 
-def rate_limit_ai(request: "Request") -> None:
-    ip = request.client.host if request.client else "unknown"
+def rate_limit_ai(request: Request) -> None:
+    ip  = request.client.host if request.client else "unknown"
     now = _time.time()
-    bucket = _rate_buckets[ip]
-    while bucket and now - bucket[0] > _RATE_WINDOW_SECONDS:
-        bucket.popleft()
-    if len(bucket) >= _RATE_MAX_REQUESTS:
+    bkt = _rate_buckets[ip]
+    while bkt and now - bkt[0] > _RATE_WINDOW:
+        bkt.popleft()
+    if len(bkt) >= _RATE_MAX:
         raise HTTPException(
             status_code=429,
-            detail=f"Too many AI requests. Limit is {_RATE_MAX_REQUESTS} per minute. Try again shortly.",
+            detail=f"Too many AI requests — limit is {_RATE_MAX}/min. Try again shortly.",
         )
-    bucket.append(now)
+    bkt.append(now)
 
 
-async def llm_complete(system: str, user_text: str, model: str = LLM_MODEL_FAST, history: Optional[List[dict]] = None) -> str:
-    """Non-streaming completion. history is list of {role: 'user'|'model', content: str}. Falls back to LLM_MODEL_FAST on budget errors."""
-    # Embed history as plain context if provided (lightweight approach)
-    composed = user_text
+async def llm_complete(
+    system: str,
+    user_text: str,
+    model: str = LLM_MODEL_FAST,
+    history: Optional[List[dict]] = None,
+) -> str:
+    if not openai_client:
+        raise HTTPException(status_code=503, detail="AI is not configured. Set OPENAI_API_KEY.")
+
+    messages: list = [{"role": "system", "content": system}]
     if history:
-        transcript_lines = []
         for msg in history[-12:]:
-            role = msg.get("role", "user")
+            role    = msg.get("role", "user")
             content = (msg.get("content") or "").strip()
-            label = "User" if role == "user" else "Assistant"
             if content:
-                transcript_lines.append(f"{label}: {content}")
-        if transcript_lines:
-            composed = "Conversation so far:\n" + "\n".join(transcript_lines) + f"\n\nUser: {user_text}\n\nAssistant:"
+                messages.append({
+                    "role": "assistant" if role == "model" else "user",
+                    "content": content,
+                })
+    messages.append({"role": "user", "content": user_text})
 
     async def _attempt(use_model: str) -> str:
-        session_id = str(uuid.uuid4())
-        chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=session_id, system_message=system).with_model("openai", use_model)
-        reply = await chat.send_message(UserMessage(text=composed))
-        return reply if isinstance(reply, str) else str(reply)
+        resp = await openai_client.chat.completions.create(
+            model=use_model,
+            messages=messages,
+            max_tokens=2000,
+        )
+        return resp.choices[0].message.content or ""
 
     try:
         return await _attempt(model)
     except Exception as exc:
         msg = str(exc).lower()
-        # Fall back to the fast model on budget/rate errors
-        if model != LLM_MODEL_FAST and ("budget" in msg or "rate" in msg or "quota" in msg or "429" in msg):
-            logger.warning("Falling back from %s to %s due to: %s", model, LLM_MODEL_FAST, exc)
+        if model != LLM_MODEL_FAST and any(k in msg for k in ("budget", "rate", "quota", "429")):
+            logger.warning("Falling back %s → %s: %s", model, LLM_MODEL_FAST, exc)
             return await _attempt(LLM_MODEL_FAST)
         raise
 
 
-# ---------- Models ----------
+# ---------- Pydantic models ----------
 class HealthResponse(BaseModel):
     status: str
     timestamp: str
@@ -234,10 +315,15 @@ class RoleplayFeedbackRequest(BaseModel):
     transcript: List[RoleplayMessage]
 
 
+class RoleplayFeedbackResponse(BaseModel):
+    feedback: str
+    rating: int
+
+
 class DrillCompleteRequest(BaseModel):
     deviceId: str
     drillIndex: int
-    dateKey: str  # YYYY-MM-DD
+    dateKey: str
 
 
 class ContactRequest(BaseModel):
@@ -254,9 +340,17 @@ class EligibilityRequest(BaseModel):
     age: Optional[int] = Field(default=None, ge=0, le=130)
     indicators: List[str] = Field(default_factory=list)
     functionalScore: Optional[str] = Field(default=None, max_length=20)
-    functionalScale: Optional[str] = Field(default=None, max_length=20)  # 'FAST' or 'PPS' or 'KPS'
+    functionalScale: Optional[str] = Field(default=None, max_length=20)
     recentEvents: Optional[str] = Field(default=None, max_length=800)
     notes: Optional[str] = Field(default=None, max_length=800)
+
+
+class CheckoutRequest(BaseModel):
+    package_id: str
+    origin_url: str
+    customer_name: Optional[str] = Field(default=None, max_length=120)
+    customer_email: Optional[EmailStr] = None
+    notes: Optional[str] = Field(default=None, max_length=600)
 
 
 # ---------- Health ----------
@@ -275,29 +369,36 @@ async def root():
 async def chat_endpoint(req: ChatRequest, request: Request):
     rate_limit_ai(request)
     history = [m.model_dump() for m in req.conversationHistory]
-    text: str = ""
     try:
         text = await llm_complete(SPARTAN_SYSTEM_INSTRUCTION, req.prompt, model=LLM_MODEL, history=history)
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.exception("chat failed")
         raise HTTPException(status_code=500, detail=f"AI generation failed: {exc}")
-    # Persist conversation log (anonymous)
-    await db.chat_logs.insert_one({
-        "id": str(uuid.uuid4()),
-        "prompt": req.prompt,
-        "response": text,
-        "created_at": now_iso(),
-    })
+    if pool:
+        try:
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    "INSERT INTO chat_logs (id, prompt, response) VALUES ($1, $2, $3)",
+                    str(uuid.uuid4()), req.prompt[:500], text[:500],
+                )
+        except Exception:
+            pass
     return ChatResponse(response=text)
 
 
 @api.post("/ask", response_model=ChatResponse)
 async def ask_endpoint(req: AskRequest, request: Request):
     rate_limit_ai(request)
-    prompt = f"A hospice growth professional asks: {req.question}\n\nGive a clear, concrete, field-ready answer (300-500 words). Use bullets or numbered steps where they help."
-    text: str = ""
+    prompt = (
+        f"A hospice growth professional asks: {req.question}\n\n"
+        "Give a clear, concrete, field-ready answer (300-500 words). Use bullets or numbered steps where they help."
+    )
     try:
         text = await llm_complete(SPARTAN_SYSTEM_INSTRUCTION, prompt, model=LLM_MODEL_FAST)
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.exception("ask failed")
         raise HTTPException(status_code=500, detail=f"AI generation failed: {exc}")
@@ -309,15 +410,18 @@ async def ask_endpoint(req: AskRequest, request: Request):
 async def objection_endpoint(req: ObjectionRequest, request: Request):
     rate_limit_ai(request)
     prompt = (
-        f"OBJECTION HEARD: \"{req.objection}\"\n\n"
-        f"{'CONTEXT: ' + req.context + chr(10) + chr(10) if req.context else ''}"
+        f'OBJECTION HEARD: "{req.objection}"\n\n'
+        f'{"CONTEXT: " + req.context + chr(10) + chr(10) if req.context else ""}'
         "Provide three patient-centered, ethical responses a hospice liaison can use in the next 24 hours:\n"
-        "1. A clinical/evidence-based response\n2. An empathetic/relational response\n3. A practical/next-step response\n\n"
+        "1. A clinical/evidence-based response\n"
+        "2. An empathetic/relational response\n"
+        "3. A practical/next-step response\n\n"
         "For each, give the exact words to say (2-4 sentences), then a one-line coaching note on why it works."
     )
-    text: str = ""
     try:
         text = await llm_complete(SPARTAN_SYSTEM_INSTRUCTION, prompt, model=LLM_MODEL_FAST)
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.exception("objection failed")
         raise HTTPException(status_code=500, detail=f"AI generation failed: {exc}")
@@ -332,7 +436,8 @@ async def playbook_endpoint(req: PlaybookRequest, request: Request):
         f"SCENARIO: {req.scenario}\n"
         f"REFERRAL SOURCE TYPE: {req.referralSourceType or 'Unspecified'}\n"
         f"GOAL FOR THIS VISIT: {req.goal or 'Unspecified'}\n\n"
-        "Build a complete pre-visit sales playbook using The Healthcare Sales Mastery Model (Discovery, Connecting, Guiding, Commitment).\n\n"
+        "Build a complete pre-visit sales playbook using The Healthcare Sales Mastery Model "
+        "(Discovery, Connecting, Guiding, Commitment).\n\n"
         "Structure your response with these markdown sections:\n"
         "## Pre-visit prep (5 bullet checklist)\n"
         "## Opening (exact words, under 90 seconds)\n"
@@ -343,9 +448,10 @@ async def playbook_endpoint(req: PlaybookRequest, request: Request):
         "## Follow-up plan (next 14 days)\n"
         "## Compliance reminder (one line, specific to this scenario)"
     )
-    text: str = ""
     try:
         text = await llm_complete(SPARTAN_SYSTEM_INSTRUCTION, prompt, model=LLM_MODEL)
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.exception("playbook failed")
         raise HTTPException(status_code=500, detail=f"AI generation failed: {exc}")
@@ -380,18 +486,14 @@ async def roleplay_turn(req: RoleplayRequest, request: Request):
         "- Never mention that you are an AI or that this is a practice exercise."
     )
     history = [m.model_dump() for m in req.history]
-    text: str = ""
     try:
         text = await llm_complete(system, req.userMessage, model=LLM_MODEL_FAST, history=history)
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.exception("roleplay failed")
         raise HTTPException(status_code=500, detail=f"AI generation failed: {exc}")
     return ChatResponse(response=text)
-
-
-class RoleplayFeedbackResponse(BaseModel):
-    feedback: str
-    rating: int
 
 
 @api.post("/roleplay/feedback", response_model=RoleplayFeedbackResponse)
@@ -400,22 +502,27 @@ async def roleplay_feedback(req: RoleplayFeedbackRequest):
     if not scenario:
         raise HTTPException(status_code=404, detail="Unknown scenario")
     transcript_text = "\n\n".join(
-        f"{'Sales Rep' if m.role == 'user' else 'Prospect/Contact'}: {m.content}" for m in req.transcript
+        f"{'Sales Rep' if m.role == 'user' else 'Prospect/Contact'}: {m.content}"
+        for m in req.transcript
     )
     prompt = ROLEPLAY_FEEDBACK_PROMPT_TEMPLATE.format(
         scenario_title=scenario["title"], conversation_text=transcript_text
     )
-    system = "You are an expert hospice sales coach providing detailed, constructive feedback on practice role-play sessions. Be specific, reference actual quotes, and provide actionable advice based on the Spartan Method (Discipline, Empathy, Strategy). Be encouraging but honest."
-    text: str = ""
+    system = (
+        "You are an expert hospice sales coach providing detailed, constructive feedback on practice "
+        "role-play sessions. Be specific, reference actual quotes, and provide actionable advice based "
+        "on the Spartan Method (Discipline, Empathy, Strategy). Be encouraging but honest."
+    )
     try:
         text = await llm_complete(system, prompt, model=LLM_MODEL)
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.exception("roleplay feedback failed")
         raise HTTPException(status_code=500, detail=f"AI generation failed: {exc}")
-    import re
-    m = re.search(r"RATING:\s*(\d+)", text, re.IGNORECASE)
-    rating = max(1, min(10, int(m.group(1)))) if m else 5
-    feedback = re.sub(r"RATING:\s*\d+\n?", "", text, flags=re.IGNORECASE).strip()
+    m = _re.search(r"RATING:\s*(\d+)", text, _re.IGNORECASE)
+    rating   = max(1, min(10, int(m.group(1)))) if m else 5
+    feedback = _re.sub(r"RATING:\s*\d+\n?", "", text, flags=_re.IGNORECASE).strip()
     return RoleplayFeedbackResponse(feedback=feedback, rating=rating)
 
 
@@ -427,49 +534,52 @@ async def get_all_drills():
 
 @api.get("/drills/today")
 async def get_today_drill():
-    today = datetime.now(timezone.utc).date()
+    today      = datetime.now(timezone.utc).date()
     day_of_year = (today - datetime(today.year, 1, 1, tzinfo=timezone.utc).date()).days
     idx = day_of_year % len(ALL_DRILLS)
-    d = ALL_DRILLS[idx]
+    d   = ALL_DRILLS[idx]
     return {"index": idx, "category": d["category"], "drill": d["drill"], "dateKey": today.isoformat()}
 
 
 @api.post("/drills/complete")
 async def complete_drill(req: DrillCompleteRequest):
-    await db.drill_completions.update_one(
-        {"deviceId": req.deviceId, "dateKey": req.dateKey},
-        {"$set": {"deviceId": req.deviceId, "dateKey": req.dateKey, "drillIndex": req.drillIndex, "completed_at": now_iso()}},
-        upsert=True,
-    )
+    if not pool:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO drill_completions (id, device_id, date_key, drill_index, completed_at)
+            VALUES ($1, $2, $3, $4, NOW())
+            ON CONFLICT (device_id, date_key) DO UPDATE
+                SET drill_index = EXCLUDED.drill_index, completed_at = NOW()
+            """,
+            str(uuid.uuid4()), req.deviceId, req.dateKey, req.drillIndex,
+        )
     return await drill_stats(req.deviceId)
 
 
 @api.get("/drills/stats/{device_id}")
 async def drill_stats(device_id: str):
-    from datetime import timedelta
-    cursor = db.drill_completions.find({"deviceId": device_id}).sort("dateKey", -1)
-    completions = []
-    async for doc in cursor:
-        completions.append({"dateKey": doc["dateKey"], "drillIndex": doc.get("drillIndex")})
+    if not pool:
+        return {"totalCompleted": 0, "streak": 0, "completions": [], "heatmap": []}
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT date_key, drill_index FROM drill_completions WHERE device_id = $1 ORDER BY date_key DESC",
+            device_id,
+        )
+    completions = [{"dateKey": r["date_key"], "drillIndex": r["drill_index"]} for r in rows]
     today = datetime.now(timezone.utc).date()
-    completion_dates = {datetime.strptime(c["dateKey"], "%Y-%m-%d").date() for c in completions}
-    # Streak: count consecutive days back from today (or yesterday if today not done)
+    done_dates = {datetime.strptime(c["dateKey"], "%Y-%m-%d").date() for c in completions}
     streak = 0
-    cursor_date = today if today in completion_dates else today - timedelta(days=1)
-    while cursor_date in completion_dates:
+    cur = today if today in done_dates else today - timedelta(days=1)
+    while cur in done_dates:
         streak += 1
-        cursor_date -= timedelta(days=1)
-    # Heatmap: last 90 days
+        cur -= timedelta(days=1)
     heatmap = [
-        {"date": (today - timedelta(days=i)).isoformat(), "done": (today - timedelta(days=i)) in completion_dates}
+        {"date": (today - timedelta(days=i)).isoformat(), "done": (today - timedelta(days=i)) in done_dates}
         for i in range(89, -1, -1)
     ]
-    return {
-        "totalCompleted": len(completions),
-        "streak": streak,
-        "completions": completions[:30],
-        "heatmap": heatmap,
-    }
+    return {"totalCompleted": len(completions), "streak": streak, "completions": completions[:30], "heatmap": heatmap}
 
 
 # ---------- Knowledge Base ----------
@@ -488,19 +598,10 @@ async def knowledge_base(q: Optional[str] = None, category: Optional[str] = None
 # ---------- Contact ----------
 @api.post("/contact")
 async def contact(req: ContactRequest):
-    record = {
-        "id": str(uuid.uuid4()),
-        "name": req.name,
-        "email": req.email,
-        "phone": req.phone,
-        "company": req.company,
-        "serviceInterest": req.serviceInterest,
-        "message": req.message,
-        "created_at": now_iso(),
-        "email_sent": False,
-        "email_error": None,
-    }
-    # Try to send via Resend
+    record_id  = str(uuid.uuid4())
+    email_sent = False
+    email_error: Optional[str] = None
+
     if RESEND_API_KEY:
         try:
             html = f"""
@@ -523,12 +624,26 @@ async def contact(req: ContactRequest):
                 "subject": f"New inquiry from {req.name} via Spartan Coaching app",
                 "html": html,
             })
-            record["email_sent"] = True
+            email_sent = True
         except Exception as exc:
             logger.exception("resend failed")
-            record["email_error"] = str(exc)
-    await db.contacts.insert_one(record)
-    return {"id": record["id"], "email_sent": record["email_sent"]}
+            email_error = str(exc)
+
+    if pool:
+        try:
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    """
+                    INSERT INTO contacts (id, name, email, phone, company, service_interest, message, email_sent, email_error)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                    """,
+                    record_id, req.name, str(req.email), req.phone, req.company,
+                    req.serviceInterest, req.message, email_sent, email_error,
+                )
+        except Exception as exc:
+            logger.exception("contact db insert failed: %s", exc)
+
+    return {"id": record_id, "email_sent": email_sent}
 
 
 # ---------- Method content (static) ----------
@@ -537,29 +652,29 @@ async def method_content():
     return {
         "pillars": [
             {"id": "discipline", "title": "Discipline", "description": "Structure and consistency. Show up prepared, execute with precision, track what matters."},
-            {"id": "empathy", "title": "Empathy", "description": "Human connection. Listen with intent, understand unspoken needs, build trust beyond a single referral."},
-            {"id": "strategy", "title": "Strategy", "description": "Act with purpose. Use data, market insights, and proven tools to focus where impact is highest."},
+            {"id": "empathy",    "title": "Empathy",    "description": "Human connection. Listen with intent, understand unspoken needs, build trust beyond a single referral."},
+            {"id": "strategy",   "title": "Strategy",   "description": "Act with purpose. Use data, market insights, and proven tools to focus where impact is highest."},
         ],
         "subjects": [
-            {"id": "discovery", "title": "Discovery", "icon": "compass", "color": "#3b82f6", "purpose": "Discovery is learning about the contact and their individual needs.", "executionStandard": "Ask targeted questions about workflow, decision-making, and patient transition concerns. Listen for the specific language the contact uses.", "measurableOutput": "A completed contact profile capturing stated needs, preferred communication style, decision-making role, and confidence triggers."},
-            {"id": "connecting", "title": "Connecting", "icon": "users", "color": "#a855f7", "purpose": "Connecting happens after Discovery. Align to how the contact wants to work, communicate, and move decisions forward.", "executionStandard": "Reference what they shared. Adapt your cadence, format, and content. Confirm mutual understanding of how you will work together.", "measurableOutput": "A documented working agreement reflecting preferred communication method, frequency, and team support."},
-            {"id": "guiding", "title": "Guiding", "icon": "target", "color": "#f97316", "purpose": "Use hospice solutions to solve and improve the needs of the contact and account.", "executionStandard": "Present specific capabilities that address identified needs and friction points. Use real examples and clinical support tools.", "measurableOutput": "The contact can articulate at least one specific way your team solves a problem they identified."},
-            {"id": "commitment", "title": "Commitment", "icon": "check", "color": "#16a34a", "purpose": "Commit to a patient referral. Make the next step clear action.", "executionStandard": "Define the referral trigger clearly. Establish who calls, when, how, and what happens once received.", "measurableOutput": "A referral pathway document or verbal commitment naming trigger, caller, method, and follow-up process."},
+            {"id": "discovery",   "title": "Discovery",   "icon": "compass", "color": "#3b82f6", "purpose": "Discovery is learning about the contact and their individual needs.", "executionStandard": "Ask targeted questions about workflow, decision-making, and patient transition concerns. Listen for the specific language the contact uses.", "measurableOutput": "A completed contact profile capturing stated needs, preferred communication style, decision-making role, and confidence triggers."},
+            {"id": "connecting",  "title": "Connecting",  "icon": "users",   "color": "#a855f7", "purpose": "Connecting happens after Discovery. Align to how the contact wants to work, communicate, and move decisions forward.", "executionStandard": "Reference what they shared. Adapt your cadence, format, and content. Confirm mutual understanding of how you will work together.", "measurableOutput": "A documented working agreement reflecting preferred communication method, frequency, and team support."},
+            {"id": "guiding",     "title": "Guiding",     "icon": "target",  "color": "#f97316", "purpose": "Use hospice solutions to solve and improve the needs of the contact and account.", "executionStandard": "Present specific capabilities that address identified needs and friction points. Use real examples and clinical support tools.", "measurableOutput": "The contact can articulate at least one specific way your team solves a problem they identified."},
+            {"id": "commitment",  "title": "Commitment",  "icon": "check",   "color": "#16a34a", "purpose": "Commit to a patient referral. Make the next step clear action.", "executionStandard": "Define the referral trigger clearly. Establish who calls, when, how, and what happens once received.", "measurableOutput": "A referral pathway document or verbal commitment naming trigger, caller, method, and follow-up process."},
         ],
         "fundamentals": [
-            {"title": "Mamba mentality in practice and performance", "description": "Repetitions on purpose, film review, and one tiny edge after every session."},
+            {"title": "Mamba mentality in practice and performance",            "description": "Repetitions on purpose, film review, and one tiny edge after every session."},
             {"title": "Plain language that busy clinical leaders can use the same day", "description": "No jargon. Every word earns its place."},
-            {"title": "Minimum necessary data with named users only", "description": "Track what matters, discard the noise."},
+            {"title": "Minimum necessary data with named users only",            "description": "Track what matters, discard the noise."},
             {"title": "Shared definitions and formulas, so numbers cannot be gamed", "description": "Transparent metrics eliminate ambiguity."},
             {"title": "Visible work that another person can see, repeat, and coach", "description": "If it cannot be observed, it cannot be improved."},
         ],
         "ethics": [
-            {"title": "Patient choice is honored at every step", "icon": "heart"},
+            {"title": "Patient choice is honored at every step",          "icon": "heart"},
             {"title": "Clinical judgment is supported and never replaced", "icon": "shield"},
             {"title": "Privacy is protected by behavior and explained in human language", "icon": "eye"},
-            {"title": "Only the minimum necessary data is used", "icon": "database"},
-            {"title": "Only named users have access", "icon": "user-check"},
-            {"title": "No protected information leaves approved systems", "icon": "lock"},
+            {"title": "Only the minimum necessary data is used",           "icon": "database"},
+            {"title": "Only named users have access",                      "icon": "user-check"},
+            {"title": "No protected information leaves approved systems",  "icon": "lock"},
         ],
     }
 
@@ -601,7 +716,7 @@ The 2-3 most relevant LCD criteria for {diagnosis} and how the snapshot maps (or
 A short checklist (3-5 bullets) of the specific labs, scales, or documentation a hospice intake nurse should request from the referring clinician to confirm eligibility.
 
 ## Suggested Next Step
-One concrete action the referral source can take in the next 24 hours (e.g., request a hospice info visit, share this summary with the hospice intake nurse, schedule a goals-of-care conversation, etc.).
+One concrete action the referral source can take in the next 24 hours.
 
 ## Important Reminder
 A single sentence reminding the reader that final eligibility determination requires physician certification per Medicare guidelines and that this summary is an education tool only."""
@@ -622,30 +737,27 @@ async def eligibility_assess(req: EligibilityRequest, request: Request):
     )
     try:
         text = await llm_complete(ELIGIBILITY_SYSTEM, prompt, model=LLM_MODEL_FAST)
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.exception("eligibility failed")
         raise HTTPException(status_code=500, detail=f"AI generation failed: {exc}")
-    # Extract verdict
-    import re
-    m = re.search(r"VERDICT:\s*(LIKELY|POSSIBLE|NOT_YET)", text, re.IGNORECASE)
+    m = _re.search(r"VERDICT:\s*(LIKELY|POSSIBLE|NOT_YET)", text, _re.IGNORECASE)
     verdict = m.group(1).upper() if m else "POSSIBLE"
-    # Strip the VERDICT: line
-    summary = re.sub(r"VERDICT:\s*(LIKELY|POSSIBLE|NOT_YET)\s*\n?", "", text, flags=re.IGNORECASE).strip()
-    # Save anonymously for analytics
-    await db.eligibility_checks.insert_one({
-        "id": str(uuid.uuid4()),
-        "diagnosis": req.diagnosis,
-        "verdict": verdict,
-        "indicators_count": len(req.indicators),
-        "created_at": now_iso(),
-    })
+    summary = _re.sub(r"VERDICT:\s*(LIKELY|POSSIBLE|NOT_YET)\s*\n?", "", text, flags=_re.IGNORECASE).strip()
+    if pool:
+        try:
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    "INSERT INTO eligibility_checks (id, diagnosis, verdict, indicators_count) VALUES ($1, $2, $3, $4)",
+                    str(uuid.uuid4()), req.diagnosis, verdict, len(req.indicators),
+                )
+        except Exception:
+            pass
     return {"verdict": verdict, "summary": summary}
 
 
-# ---------- Admin (lightweight, token-protected) ----------
-from fastapi import Header, Depends
-
-
+# ---------- Admin ----------
 def require_admin(authorization: Optional[str] = Header(default=None)):
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing admin token")
@@ -657,200 +769,80 @@ def require_admin(authorization: Optional[str] = Header(default=None)):
 
 @api.get("/admin/overview")
 async def admin_overview(_: bool = Depends(require_admin)):
-    from datetime import timedelta
-    now = datetime.now(timezone.utc)
-    cutoffs = {
-        "today": (now - timedelta(days=1)).isoformat(),
-        "week": (now - timedelta(days=7)).isoformat(),
-        "month": (now - timedelta(days=30)).isoformat(),
-    }
+    if not pool:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    async with pool.acquire() as conn:
+        contacts_total  = await conn.fetchval("SELECT COUNT(*) FROM contacts")
+        contacts_today  = await conn.fetchval("SELECT COUNT(*) FROM contacts WHERE created_at >= NOW() - INTERVAL '1 day'")
+        contacts_week   = await conn.fetchval("SELECT COUNT(*) FROM contacts WHERE created_at >= NOW() - INTERVAL '7 days'")
+        contacts_month  = await conn.fetchval("SELECT COUNT(*) FROM contacts WHERE created_at >= NOW() - INTERVAL '30 days'")
 
-    async def count_since(collection, since):
-        return await collection.count_documents({"created_at": {"$gte": since}})
+        elig_total = await conn.fetchval("SELECT COUNT(*) FROM eligibility_checks")
+        elig_week  = await conn.fetchval("SELECT COUNT(*) FROM eligibility_checks WHERE created_at >= NOW() - INTERVAL '7 days'")
 
-    contacts_total = await db.contacts.count_documents({})
-    contacts_today = await count_since(db.contacts, cutoffs["today"])
-    contacts_week = await count_since(db.contacts, cutoffs["week"])
-    contacts_month = await count_since(db.contacts, cutoffs["month"])
+        verdict_rows = await conn.fetch(
+            "SELECT verdict, COUNT(*) AS cnt FROM eligibility_checks WHERE created_at >= NOW() - INTERVAL '30 days' GROUP BY verdict"
+        )
+        verdict_breakdown = {r["verdict"]: r["cnt"] for r in verdict_rows}
 
-    elig_total = await db.eligibility_checks.count_documents({})
-    elig_week = await count_since(db.eligibility_checks, cutoffs["week"])
+        top_diag_rows = await conn.fetch(
+            "SELECT diagnosis, COUNT(*) AS cnt FROM eligibility_checks WHERE created_at >= NOW() - INTERVAL '30 days' GROUP BY diagnosis ORDER BY cnt DESC LIMIT 8"
+        )
+        top_diagnoses = [{"diagnosis": r["diagnosis"], "count": r["cnt"]} for r in top_diag_rows]
 
-    # Verdict breakdown (last 30 days)
-    verdict_pipeline = [
-        {"$match": {"created_at": {"$gte": cutoffs["month"]}}},
-        {"$group": {"_id": "$verdict", "count": {"$sum": 1}}},
-    ]
-    verdict_breakdown = {doc["_id"]: doc["count"] async for doc in db.eligibility_checks.aggregate(verdict_pipeline)}
+        drills_total     = await conn.fetchval("SELECT COUNT(*) FROM drill_completions")
+        unique_drillers  = await conn.fetchval("SELECT COUNT(DISTINCT device_id) FROM drill_completions")
 
-    # Top diagnoses (last 30 days)
-    diag_pipeline = [
-        {"$match": {"created_at": {"$gte": cutoffs["month"]}}},
-        {"$group": {"_id": "$diagnosis", "count": {"$sum": 1}}},
-        {"$sort": {"count": -1}},
-        {"$limit": 8},
-    ]
-    top_diagnoses = [{"diagnosis": d["_id"], "count": d["count"]} async for d in db.eligibility_checks.aggregate(diag_pipeline)]
-
-    # Drill completions
-    drills_total = await db.drill_completions.count_documents({})
-    unique_drillers_pipeline = [
-        {"$group": {"_id": "$deviceId"}},
-        {"$count": "uniq"},
-    ]
-    uniq_drillers_doc = await db.drill_completions.aggregate(unique_drillers_pipeline).to_list(length=1)
-    unique_drillers = uniq_drillers_doc[0]["uniq"] if uniq_drillers_doc else 0
-
-    chat_total = await db.chat_logs.count_documents({})
-    chat_week = await count_since(db.chat_logs, cutoffs["week"])
+        chat_total = await conn.fetchval("SELECT COUNT(*) FROM chat_logs")
+        chat_week  = await conn.fetchval("SELECT COUNT(*) FROM chat_logs WHERE created_at >= NOW() - INTERVAL '7 days'")
 
     return {
-        "generated_at": now.isoformat(),
-        "contacts": {
-            "total": contacts_total,
-            "today": contacts_today,
-            "last_7_days": contacts_week,
-            "last_30_days": contacts_month,
-        },
-        "eligibility_checks": {
-            "total": elig_total,
-            "last_7_days": elig_week,
-            "verdict_breakdown_30d": verdict_breakdown,
-            "top_diagnoses_30d": top_diagnoses,
-        },
-        "drills": {
-            "total_completions": drills_total,
-            "unique_users": unique_drillers,
-        },
-        "ai_chat": {
-            "total": chat_total,
-            "last_7_days": chat_week,
-        },
+        "generated_at": now_iso(),
+        "contacts": {"total": contacts_total, "today": contacts_today, "last_7_days": contacts_week, "last_30_days": contacts_month},
+        "eligibility_checks": {"total": elig_total, "last_7_days": elig_week, "verdict_breakdown_30d": verdict_breakdown, "top_diagnoses_30d": top_diagnoses},
+        "drills": {"total_completions": drills_total, "unique_users": unique_drillers},
+        "ai_chat": {"total": chat_total, "last_7_days": chat_week},
     }
 
 
 @api.get("/admin/contacts")
 async def admin_contacts(_: bool = Depends(require_admin), limit: int = 50):
-    cursor = db.contacts.find({}, {"_id": 0}).sort("created_at", -1).limit(limit)
-    items = [doc async for doc in cursor]
+    if not pool:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM contacts ORDER BY created_at DESC LIMIT $1", limit)
+    items = [_row_to_dict(r) for r in rows]
     return {"items": items, "count": len(items)}
 
 
 @api.get("/admin/eligibility")
 async def admin_eligibility(_: bool = Depends(require_admin), limit: int = 100):
-    cursor = db.eligibility_checks.find({}, {"_id": 0}).sort("created_at", -1).limit(limit)
-    items = [doc async for doc in cursor]
+    if not pool:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM eligibility_checks ORDER BY created_at DESC LIMIT $1", limit)
+    items = [_row_to_dict(r) for r in rows]
     return {"items": items, "count": len(items)}
 
 
-# ---------- Billing / Stripe Checkout ----------
-# SECURITY: Packages and prices are defined ONLY on the server.
-# Frontend sends a package_id; backend looks up the real amount.
+# ---------- Billing / Stripe ----------
 COACHING_PACKAGES = {
-    "coaching_30": {
-        "name": "Virtual Coaching Session — 30 minutes",
-        "amount": 40.00,
-        "currency": "usd",
-        "duration_min": 30,
-    },
-    "coaching_60": {
-        "name": "Virtual Coaching Session — 60 minutes",
-        "amount": 70.00,
-        "currency": "usd",
-        "duration_min": 60,
-    },
+    "coaching_30": {"name": "Virtual Coaching Session — 30 minutes", "amount": 40.00, "currency": "usd", "duration_min": 30},
+    "coaching_60": {"name": "Virtual Coaching Session — 60 minutes", "amount": 70.00, "currency": "usd", "duration_min": 60},
 }
 
 
-class CheckoutRequest(BaseModel):
-    package_id: str
-    origin_url: str
-    customer_name: Optional[str] = Field(default=None, max_length=120)
-    customer_email: Optional[EmailStr] = None
-    notes: Optional[str] = Field(default=None, max_length=600)
-
-
-def _make_stripe(request: Request) -> StripeCheckout:
-    if not STRIPE_API_KEY:
-        raise HTTPException(status_code=503, detail="Payments are not configured.")
-    host_url = str(request.base_url).rstrip("/")
-    webhook_url = f"{host_url}/api/webhook/stripe"
-    return StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
-
-
-@api.post("/billing/checkout")
-async def billing_checkout(req: CheckoutRequest, request: Request):
-    pkg = COACHING_PACKAGES.get(req.package_id)
-    if not pkg:
-        raise HTTPException(status_code=400, detail="Unknown package.")
-
-    origin = (req.origin_url or "").rstrip("/")
-    if not origin.startswith("http"):
-        raise HTTPException(status_code=400, detail="Invalid origin_url.")
-
-    success_url = f"{origin}/payment-success?session_id={{CHECKOUT_SESSION_ID}}"
-    cancel_url = f"{origin}/services"
-
-    stripe = _make_stripe(request)
-    metadata = {
-        "package_id": req.package_id,
-        "package_name": pkg["name"],
-        "duration_min": str(pkg["duration_min"]),
-        "customer_name": req.customer_name or "",
-        "customer_email": req.customer_email or "",
-        "notes": (req.notes or "")[:480],
-        "source": "spartan_coaching_app",
-    }
-
-    checkout_req = CheckoutSessionRequest(
-        amount=float(pkg["amount"]),
-        currency=pkg["currency"],
-        success_url=success_url,
-        cancel_url=cancel_url,
-        metadata=metadata,
-    )
-    try:
-        session: CheckoutSessionResponse = await stripe.create_checkout_session(checkout_req)
-    except Exception as exc:
-        logger.exception("stripe create_checkout_session failed")
-        raise HTTPException(status_code=502, detail=f"Stripe error: {exc}")
-
-    session_id = session.session_id
-    session_url = session.url
-
-    await db.payment_transactions.insert_one({
-        "id": str(uuid.uuid4()),
-        "session_id": session_id,
-        "package_id": req.package_id,
-        "package_name": pkg["name"],
-        "amount_cents": int(round(float(pkg["amount"]) * 100)),
-        "amount": float(pkg["amount"]),
-        "currency": pkg["currency"],
-        "customer_name": req.customer_name,
-        "customer_email": req.customer_email,
-        "notes": req.notes,
-        "metadata": metadata,
-        "status": "initiated",
-        "payment_status": "unpaid",
-        "email_sent": False,
-        "created_at": now_iso(),
-        "updated_at": now_iso(),
-    })
-    return {"url": session_url, "session_id": session_id}
-
-
 def _send_purchase_email(record: dict) -> Optional[str]:
-    """Notify Nick of a new paid coaching session. Returns error string on failure, None on success."""
     if not RESEND_API_KEY:
         return "resend not configured"
     try:
-        pkg_name = record.get("package_name") or record.get("metadata", {}).get("package_name") or "Coaching Session"
-        amount = record.get("amount") or 0
-        currency = (record.get("currency") or "usd").upper()
-        cust_name = record.get("customer_name") or record.get("metadata", {}).get("customer_name") or "(not provided)"
-        cust_email = record.get("customer_email") or record.get("metadata", {}).get("customer_email") or "(not provided)"
-        notes = record.get("notes") or record.get("metadata", {}).get("notes") or "(none)"
-        sess = record.get("session_id", "")
+        pkg_name   = record.get("package_name") or "Coaching Session"
+        amount     = record.get("amount") or 0
+        currency   = (record.get("currency") or "usd").upper()
+        cust_name  = record.get("customer_name") or "(not provided)"
+        cust_email = record.get("customer_email") or "(not provided)"
+        notes      = record.get("notes") or "(none)"
+        sess       = record.get("session_id", "")
         html = f"""
 <h2>New Coaching Session Booked & Paid</h2>
 <p><strong>Package:</strong> {pkg_name}</p>
@@ -863,7 +855,7 @@ def _send_purchase_email(record: dict) -> Optional[str]:
 <hr/>
 <p style="color:#888;font-size:12px;">Stripe session: {sess}<br/>Reply to this email to coordinate scheduling.</p>
 """
-        kwargs = {
+        kwargs: dict = {
             "from": f"{RESEND_FROM_NAME} <{RESEND_FROM_EMAIL}>",
             "to": [CONTACT_EMAIL],
             "subject": f"New paid coaching booking — {pkg_name}",
@@ -879,75 +871,149 @@ def _send_purchase_email(record: dict) -> Optional[str]:
 
 
 async def _finalize_paid_session(session_id: str, payment_status: str, status_val: str, source: str):
-    """Idempotently finalize a transaction. Sends notification email on first success."""
-    rec = await db.payment_transactions.find_one({"session_id": session_id})
-    if not rec:
-        logger.warning("finalize: unknown session_id=%s (%s)", session_id, source)
+    if not pool:
         return
+    async with pool.acquire() as conn:
+        rec = await conn.fetchrow("SELECT * FROM payment_transactions WHERE session_id = $1", session_id)
+        if not rec:
+            logger.warning("finalize: unknown session_id=%s (%s)", session_id, source)
+            return
+        rec_dict      = _row_to_dict(rec)
+        already_email = bool(rec_dict.get("email_sent"))
+        email_sent    = already_email
+        email_error: Optional[str] = rec_dict.get("email_error")
+        if payment_status == "paid" and not already_email:
+            err = _send_purchase_email(rec_dict)
+            email_sent  = err is None
+            email_error = err
+        await conn.execute(
+            "UPDATE payment_transactions SET payment_status=$1, status=$2, updated_at=NOW(), email_sent=$3, email_error=$4 WHERE session_id=$5",
+            payment_status, status_val, email_sent, email_error, session_id,
+        )
 
-    update = {"payment_status": payment_status, "status": status_val, "updated_at": now_iso()}
 
-    already_emailed = bool(rec.get("email_sent"))
-    is_now_paid = payment_status == "paid"
+@api.post("/billing/checkout")
+async def billing_checkout(req: CheckoutRequest, request: Request):
+    if not STRIPE_API_KEY:
+        raise HTTPException(status_code=503, detail="Payments are not configured.")
+    pkg = COACHING_PACKAGES.get(req.package_id)
+    if not pkg:
+        raise HTTPException(status_code=400, detail="Unknown package.")
+    origin = (req.origin_url or "").rstrip("/")
+    if not origin.startswith("http"):
+        raise HTTPException(status_code=400, detail="Invalid origin_url.")
+    success_url = f"{origin}/payment-success?session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url  = f"{origin}/services"
+    metadata = {
+        "package_id":    req.package_id,
+        "package_name":  pkg["name"],
+        "duration_min":  str(pkg["duration_min"]),
+        "customer_name": req.customer_name or "",
+        "customer_email": str(req.customer_email) if req.customer_email else "",
+        "notes":         (req.notes or "")[:480],
+        "source":        "spartan_coaching_app",
+    }
+    create_kwargs: dict = {
+        "payment_method_types": ["card"],
+        "line_items": [{
+            "price_data": {
+                "currency": pkg["currency"],
+                "unit_amount": int(pkg["amount"] * 100),
+                "product_data": {"name": pkg["name"]},
+            },
+            "quantity": 1,
+        }],
+        "mode": "payment",
+        "success_url": success_url,
+        "cancel_url":  cancel_url,
+        "metadata":    metadata,
+    }
+    if req.customer_email:
+        create_kwargs["customer_email"] = str(req.customer_email)
+    try:
+        loop    = asyncio.get_event_loop()
+        session = await loop.run_in_executor(
+            None, lambda: stripe_lib.checkout.Session.create(**create_kwargs)
+        )
+    except Exception as exc:
+        logger.exception("stripe create_checkout_session failed")
+        raise HTTPException(status_code=502, detail=f"Stripe error: {exc}")
 
-    if is_now_paid and not already_emailed:
-        err = _send_purchase_email(rec)
-        if err is None:
-            update["email_sent"] = True
-            update["email_error"] = None
-        else:
-            update["email_error"] = err
+    if pool:
+        try:
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    """
+                    INSERT INTO payment_transactions
+                        (id, session_id, package_id, package_name, amount_cents, amount, currency,
+                         customer_name, customer_email, notes)
+                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+                    """,
+                    str(uuid.uuid4()), session.id, req.package_id, pkg["name"],
+                    int(round(pkg["amount"] * 100)), pkg["amount"], pkg["currency"],
+                    req.customer_name, str(req.customer_email) if req.customer_email else None, req.notes,
+                )
+        except Exception as exc:
+            logger.exception("payment_transactions insert failed: %s", exc)
 
-    await db.payment_transactions.update_one({"session_id": session_id}, {"$set": update})
+    return {"url": session.url, "session_id": session.id}
 
 
 @api.get("/billing/status/{session_id}")
-async def billing_status(session_id: str, request: Request):
-    stripe = _make_stripe(request)
+async def billing_status(session_id: str):
+    if not STRIPE_API_KEY:
+        raise HTTPException(status_code=503, detail="Payments are not configured.")
     try:
-        status_resp: CheckoutStatusResponse = await stripe.get_checkout_status(session_id)
+        loop    = asyncio.get_event_loop()
+        session = await loop.run_in_executor(
+            None, lambda: stripe_lib.checkout.Session.retrieve(session_id)
+        )
     except Exception as exc:
-        logger.exception("stripe get_checkout_status failed")
+        logger.exception("stripe retrieve failed")
         raise HTTPException(status_code=502, detail=f"Stripe error: {exc}")
-
-    payment_status = status_resp.payment_status
-    status_val = status_resp.status
-    amount_total = status_resp.amount_total
-    currency = status_resp.currency
-
-    await _finalize_paid_session(session_id, payment_status, status_val, source="polling")
-
+    await _finalize_paid_session(session_id, session.payment_status, session.status, source="polling")
     return {
-        "session_id": session_id,
-        "status": status_val,
-        "payment_status": payment_status,
-        "amount_total": amount_total,
-        "currency": currency,
+        "session_id":     session_id,
+        "status":         session.status,
+        "payment_status": session.payment_status,
+        "amount_total":   session.amount_total,
+        "currency":       session.currency,
     }
 
 
 @api.post("/webhook/stripe")
 async def stripe_webhook(request: Request):
     body = await request.body()
-    sig = request.headers.get("Stripe-Signature", "")
-    stripe = _make_stripe(request)
+    sig  = request.headers.get("Stripe-Signature", "")
     try:
-        evt = await stripe.handle_webhook(body, sig)
+        if STRIPE_WEBHOOK_SECRET and sig:
+            event = stripe_lib.Webhook.construct_event(body, sig, STRIPE_WEBHOOK_SECRET)
+        else:
+            import json as _json
+            event = stripe_lib.Event.construct_from(_json.loads(body), stripe_lib.api_key)
     except Exception as exc:
         logger.exception("stripe webhook verify failed")
         raise HTTPException(status_code=400, detail=f"Webhook error: {exc}")
 
-    if evt.session_id:
-        await _finalize_paid_session(
-            evt.session_id,
-            evt.payment_status or "unknown",
-            "complete" if evt.payment_status == "paid" else (evt.event_type or "event"),
-            source=f"webhook:{evt.event_type}",
-        )
+    session_id     = None
+    payment_status = None
+    event_type     = event.get("type", "")
+
+    if event_type in ("checkout.session.completed", "checkout.session.async_payment_succeeded"):
+        obj            = event["data"]["object"]
+        session_id     = obj.get("id")
+        payment_status = obj.get("payment_status", "paid")
+    elif event_type == "checkout.session.async_payment_failed":
+        obj            = event["data"]["object"]
+        session_id     = obj.get("id")
+        payment_status = "failed"
+
+    if session_id:
+        await _finalize_paid_session(session_id, payment_status or "unknown", event_type, source=f"webhook:{event_type}")
     return {"received": True}
 
 
-# ---------- Repo-mirrored static content (Testimonials / Articles / Podcasts / Resources) ----------
+# ---------- Static content (repo-mirrored) ----------
 @api.get("/content/testimonials")
 async def content_testimonials():
     return {"testimonials": REPO_TESTIMONIALS, "caseStudies": REPO_CASE_STUDIES}
@@ -968,11 +1034,5 @@ async def content_resources():
     return {"resources": REPO_RESOURCES}
 
 
-# Mount router
+# ---------- Mount ----------
 app.include_router(api)
-
-
-
-@app.on_event("shutdown")
-async def shutdown_db():
-    client.close()
