@@ -11,9 +11,10 @@ type Phase = 'checking' | 'paid' | 'unpaid' | 'expired' | 'error';
 
 export default function PaymentSuccessScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ session_id?: string }>();
-  const sessionId =
-    typeof params.session_id === 'string' ? params.session_id : Array.isArray(params.session_id) ? params.session_id[0] : '';
+  const params = useLocalSearchParams<{ session_id?: string; token?: string }>();
+  // PayPal redirects with ?token=ORDER_ID; Stripe used ?session_id=...
+  const rawId = params.token || params.session_id;
+  const sessionId = typeof rawId === 'string' ? rawId : Array.isArray(rawId) ? rawId[0] : '';
 
   const [phase, setPhase] = useState<Phase>('checking');
   const [info, setInfo] = useState<{ amount?: number; currency?: string } | null>(null);
@@ -84,7 +85,7 @@ export default function PaymentSuccessScreen() {
             <View style={{ alignItems: 'center', padding: spacing.l }}>
               <ActivityIndicator color={palette.primary} size="large" />
               <Body dim style={{ marginTop: spacing.m, textAlign: 'center' }}>
-                Verifying with Stripe… this only takes a few seconds.
+                Verifying with PayPal… this only takes a few seconds.
               </Body>
             </View>
           </Card>
@@ -98,7 +99,7 @@ export default function PaymentSuccessScreen() {
               </View>
               <H3 style={{ marginTop: spacing.l, textAlign: 'center' }}>Payment received — {amountFmt}</H3>
               <Body dim style={{ marginTop: spacing.s, textAlign: 'center' }}>
-                Nick has been notified and will email you within one business day to lock in your session time. A Stripe receipt was sent to your email.
+                Nick has been notified and will email you within one business day to lock in your session time. A PayPal receipt was sent to your email.
               </Body>
             </View>
             <View style={{ marginTop: spacing.l, gap: spacing.s }}>

@@ -24,7 +24,7 @@ from pydantic import BaseModel, Field, EmailStr
 import asyncpg
 import resend
 import openai
-import stripe as stripe_lib
+import base64 as _base64
 from collections import defaultdict, deque
 import time as _time
 
@@ -56,8 +56,9 @@ CONTACT_EMAIL     = os.environ.get("CONTACT_EMAIL", "nick@spartanhospicecoaching
 LLM_MODEL         = os.environ.get("LLM_MODEL", "gpt-4o")
 LLM_MODEL_FAST    = os.environ.get("LLM_MODEL_FAST", "gpt-4o-mini")
 ADMIN_TOKEN       = os.environ.get("ADMIN_TOKEN", "spartan-admin")
-STRIPE_API_KEY         = os.environ.get("STRIPE_API_KEY")
-STRIPE_WEBHOOK_SECRET  = os.environ.get("STRIPE_WEBHOOK_SECRET")
+PAYPAL_CLIENT_ID     = os.environ.get("PAYPAL_CLIENT_ID")
+PAYPAL_CLIENT_SECRET = os.environ.get("PAYPAL_CLIENT_SECRET")
+PAYPAL_MODE          = os.environ.get("PAYPAL_MODE", "sandbox")
 CORS_ALLOWED_ORIGINS = [
     o.strip()
     for o in os.environ.get("CORS_ALLOWED_ORIGINS", "*").split(",")
@@ -66,9 +67,6 @@ CORS_ALLOWED_ORIGINS = [
 
 if RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
-
-if STRIPE_API_KEY:
-    stripe_lib.api_key = STRIPE_API_KEY
 
 openai_client: Optional[openai.AsyncOpenAI] = (
     openai.AsyncOpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
@@ -171,14 +169,14 @@ async def startup():
     except Exception as exc:
         logger.error("PostgreSQL startup failed: %s", exc)
 
-    resend_status = "configured" if RESEND_API_KEY else "DISABLED"
-    ai_status     = "configured" if OPENAI_API_KEY else "DISABLED"
-    stripe_status = "configured" if STRIPE_API_KEY else "DISABLED"
-    admin_warn    = "" if (ADMIN_TOKEN and ADMIN_TOKEN != "spartan-admin") else " ⚠ DEFAULT token"
+    resend_status  = "configured" if RESEND_API_KEY else "DISABLED"
+    ai_status      = "configured" if OPENAI_API_KEY else "DISABLED"
+    paypal_status  = "configured" if (PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET) else "DISABLED"
+    admin_warn     = "" if (ADMIN_TOKEN and ADMIN_TOKEN != "spartan-admin") else " ⚠ DEFAULT token"
     logger.info(
-        "Spartan API up | DB=%s | AI=%s | Stripe=%s | Resend=%s | Admin=%s%s",
+        "Spartan API up | DB=%s | AI=%s | PayPal=%s | Resend=%s | Admin=%s%s",
         "ok" if pool else "UNAVAILABLE",
-        ai_status, stripe_status, resend_status,
+        ai_status, paypal_status, resend_status,
         ADMIN_TOKEN[:6] + "…" if ADMIN_TOKEN else "(unset)",
         admin_warn,
     )
@@ -825,11 +823,75 @@ async def admin_eligibility(_: bool = Depends(require_admin), limit: int = 100):
     return {"items": items, "count": len(items)}
 
 
-# ---------- Billing / Stripe ----------
+# ---------- Billing / PayPal ----------
 COACHING_PACKAGES = {
-    "coaching_30": {"name": "Virtual Coaching Session — 30 minutes", "amount": 40.00, "currency": "usd", "duration_min": 30},
-    "coaching_60": {"name": "Virtual Coaching Session — 60 minutes", "amount": 70.00, "currency": "usd", "duration_min": 60},
+    "coaching_30": {"name": "Virtual Coaching Session — 30 minutes", "amount": 40.00, "currency": "USD", "duration_min": 30},
+    "coaching_60": {"name": "Virtual Coaching Session — 60 minutes", "amount": 70.00, "currency": "USD", "duration_min": 60},
 }
+
+
+def _paypal_base() -> str:
+    return "https://api-m.sandbox.paypal.com" if PAYPAL_MODE != "live" else "https://api-m.paypal.com"
+
+
+async def _paypal_token() -> str:
+    creds = _base64.b64encode(f"{PAYPAL_CLIENT_ID}:{PAYPAL_CLIENT_SECRET}".encode()).decode()
+    async with httpx.AsyncClient() as c:
+        r = await c.post(
+            f"{_paypal_base()}/v1/oauth2/token",
+            headers={"Authorization": f"Basic {creds}", "Content-Type": "application/x-www-form-urlencoded"},
+            content=b"grant_type=client_credentials",
+        )
+        r.raise_for_status()
+        return r.json()["access_token"]
+
+
+async def _paypal_create_order(amount: float, currency: str, pkg_name: str, pkg_id: str, return_url: str, cancel_url: str) -> dict:
+    token = await _paypal_token()
+    async with httpx.AsyncClient() as c:
+        r = await c.post(
+            f"{_paypal_base()}/v2/checkout/orders",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={
+                "intent": "CAPTURE",
+                "purchase_units": [{
+                    "amount": {"currency_code": currency, "value": f"{amount:.2f}"},
+                    "description": pkg_name,
+                    "custom_id": pkg_id,
+                }],
+                "application_context": {
+                    "return_url": return_url,
+                    "cancel_url": cancel_url,
+                    "brand_name": "Spartan Coaching",
+                    "user_action": "PAY_NOW",
+                    "shipping_preference": "NO_SHIPPING",
+                },
+            },
+        )
+        r.raise_for_status()
+        return r.json()
+
+
+async def _paypal_get_order(order_id: str) -> dict:
+    token = await _paypal_token()
+    async with httpx.AsyncClient() as c:
+        r = await c.get(
+            f"{_paypal_base()}/v2/checkout/orders/{order_id}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        r.raise_for_status()
+        return r.json()
+
+
+async def _paypal_capture_order(order_id: str) -> dict:
+    token = await _paypal_token()
+    async with httpx.AsyncClient() as c:
+        r = await c.post(
+            f"{_paypal_base()}/v2/checkout/orders/{order_id}/capture",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        )
+        r.raise_for_status()
+        return r.json()
 
 
 def _send_purchase_email(record: dict) -> Optional[str]:
@@ -893,8 +955,8 @@ async def _finalize_paid_session(session_id: str, payment_status: str, status_va
 
 
 @api.post("/billing/checkout")
-async def billing_checkout(req: CheckoutRequest, request: Request):
-    if not STRIPE_API_KEY:
+async def billing_checkout(req: CheckoutRequest):
+    if not PAYPAL_CLIENT_ID or not PAYPAL_CLIENT_SECRET:
         raise HTTPException(status_code=503, detail="Payments are not configured.")
     pkg = COACHING_PACKAGES.get(req.package_id)
     if not pkg:
@@ -902,42 +964,25 @@ async def billing_checkout(req: CheckoutRequest, request: Request):
     origin = (req.origin_url or "").rstrip("/")
     if not origin.startswith("http"):
         raise HTTPException(status_code=400, detail="Invalid origin_url.")
-    success_url = f"{origin}/payment-success?session_id={{CHECKOUT_SESSION_ID}}"
-    cancel_url  = f"{origin}/services"
-    metadata = {
-        "package_id":    req.package_id,
-        "package_name":  pkg["name"],
-        "duration_min":  str(pkg["duration_min"]),
-        "customer_name": req.customer_name or "",
-        "customer_email": str(req.customer_email) if req.customer_email else "",
-        "notes":         (req.notes or "")[:480],
-        "source":        "spartan_coaching_app",
-    }
-    create_kwargs: dict = {
-        "payment_method_types": ["card"],
-        "line_items": [{
-            "price_data": {
-                "currency": pkg["currency"],
-                "unit_amount": int(pkg["amount"] * 100),
-                "product_data": {"name": pkg["name"]},
-            },
-            "quantity": 1,
-        }],
-        "mode": "payment",
-        "success_url": success_url,
-        "cancel_url":  cancel_url,
-        "metadata":    metadata,
-    }
-    if req.customer_email:
-        create_kwargs["customer_email"] = str(req.customer_email)
+    return_url = f"{origin}/payment-success"
+    cancel_url = f"{origin}/services"
     try:
-        loop    = asyncio.get_event_loop()
-        session = await loop.run_in_executor(
-            None, lambda: stripe_lib.checkout.Session.create(**create_kwargs)
+        order = await _paypal_create_order(
+            amount=pkg["amount"],
+            currency=pkg["currency"],
+            pkg_name=pkg["name"],
+            pkg_id=req.package_id,
+            return_url=return_url,
+            cancel_url=cancel_url,
         )
     except Exception as exc:
-        logger.exception("stripe create_checkout_session failed")
-        raise HTTPException(status_code=502, detail=f"Stripe error: {exc}")
+        logger.exception("paypal create_order failed")
+        raise HTTPException(status_code=502, detail=f"PayPal error: {exc}")
+
+    order_id    = order["id"]
+    approve_url = next((l["href"] for l in order.get("links", []) if l["rel"] == "approve"), None)
+    if not approve_url:
+        raise HTTPException(status_code=502, detail="PayPal did not return an approval URL.")
 
     if pool:
         try:
@@ -949,67 +994,65 @@ async def billing_checkout(req: CheckoutRequest, request: Request):
                          customer_name, customer_email, notes)
                     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
                     """,
-                    str(uuid.uuid4()), session.id, req.package_id, pkg["name"],
+                    str(uuid.uuid4()), order_id, req.package_id, pkg["name"],
                     int(round(pkg["amount"] * 100)), pkg["amount"], pkg["currency"],
                     req.customer_name, str(req.customer_email) if req.customer_email else None, req.notes,
                 )
         except Exception as exc:
             logger.exception("payment_transactions insert failed: %s", exc)
 
-    return {"url": session.url, "session_id": session.id}
+    return {"url": approve_url, "session_id": order_id}
 
 
 @api.get("/billing/status/{session_id}")
 async def billing_status(session_id: str):
-    if not STRIPE_API_KEY:
+    if not PAYPAL_CLIENT_ID or not PAYPAL_CLIENT_SECRET:
         raise HTTPException(status_code=503, detail="Payments are not configured.")
     try:
-        loop    = asyncio.get_event_loop()
-        session = await loop.run_in_executor(
-            None, lambda: stripe_lib.checkout.Session.retrieve(session_id)
-        )
+        order = await _paypal_get_order(session_id)
     except Exception as exc:
-        logger.exception("stripe retrieve failed")
-        raise HTTPException(status_code=502, detail=f"Stripe error: {exc}")
-    await _finalize_paid_session(session_id, session.payment_status, session.status, source="polling")
+        logger.exception("paypal get_order failed")
+        raise HTTPException(status_code=502, detail=f"PayPal error: {exc}")
+
+    pp_status = order.get("status", "UNKNOWN")
+
+    if pp_status == "APPROVED":
+        try:
+            captured  = await _paypal_capture_order(session_id)
+            pp_status = captured.get("status", pp_status)
+        except Exception as exc:
+            logger.warning("paypal capture failed: %s", exc)
+
+    payment_status = "paid" if pp_status == "COMPLETED" else "unpaid"
+    status_lower   = pp_status.lower()
+    await _finalize_paid_session(session_id, payment_status, status_lower, source="polling")
+
+    units    = order.get("purchase_units", [{}])
+    amt_val  = units[0].get("amount", {}).get("value", "0") if units else "0"
+    currency = units[0].get("amount", {}).get("currency_code", "USD").lower() if units else "usd"
     return {
         "session_id":     session_id,
-        "status":         session.status,
-        "payment_status": session.payment_status,
-        "amount_total":   session.amount_total,
-        "currency":       session.currency,
+        "status":         status_lower,
+        "payment_status": payment_status,
+        "amount_total":   int(round(float(amt_val) * 100)),
+        "currency":       currency,
     }
 
 
-@api.post("/webhook/stripe")
-async def stripe_webhook(request: Request):
-    body = await request.body()
-    sig  = request.headers.get("Stripe-Signature", "")
+@api.post("/webhook/paypal")
+async def paypal_webhook(request: Request):
+    """PayPal IPN / webhook handler (optional — status polling is the primary mechanism)."""
+    import json as _json
     try:
-        if STRIPE_WEBHOOK_SECRET and sig:
-            event = stripe_lib.Webhook.construct_event(body, sig, STRIPE_WEBHOOK_SECRET)
-        else:
-            import json as _json
-            event = stripe_lib.Event.construct_from(_json.loads(body), stripe_lib.api_key)
-    except Exception as exc:
-        logger.exception("stripe webhook verify failed")
-        raise HTTPException(status_code=400, detail=f"Webhook error: {exc}")
-
-    session_id     = None
-    payment_status = None
-    event_type     = event.get("type", "")
-
-    if event_type in ("checkout.session.completed", "checkout.session.async_payment_succeeded"):
-        obj            = event["data"]["object"]
-        session_id     = obj.get("id")
-        payment_status = obj.get("payment_status", "paid")
-    elif event_type == "checkout.session.async_payment_failed":
-        obj            = event["data"]["object"]
-        session_id     = obj.get("id")
-        payment_status = "failed"
-
-    if session_id:
-        await _finalize_paid_session(session_id, payment_status or "unknown", event_type, source=f"webhook:{event_type}")
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+    event_type = body.get("event_type", "")
+    resource   = body.get("resource", {})
+    order_id   = resource.get("id")
+    pp_status  = resource.get("status", "")
+    if order_id and pp_status == "COMPLETED":
+        await _finalize_paid_session(order_id, "paid", "completed", source=f"webhook:{event_type}")
     return {"received": True}
 
 
