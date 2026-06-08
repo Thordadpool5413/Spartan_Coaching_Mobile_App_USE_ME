@@ -10,7 +10,7 @@ import { markdownStyles } from '../components/markdownStyles';
 
 const SUGGESTIONS = [
   'What are hospice eligibility criteria for heart failure?',
-  'How do I handle the &quot;not ready&quot; objection?',
+  'How do I handle the "not ready" objection?',
   'What is the Medicare hospice benefit?',
   'Best strategies for building physician referrals?',
 ];
@@ -73,10 +73,10 @@ export default function AskScreen() {
               <Pressable
                 key={i}
                 testID={`ask-suggestion-${i}`}
-                onPress={() => { setQuery(s.replace(/&quot;/g, '"')); submit(s.replace(/&quot;/g, '"')); }}
+                onPress={() => { setQuery(s); submit(s); }}
                 style={({ pressed }) => [styles.chip, { opacity: pressed ? 0.7 : 1 }]}
               >
-                <Small style={{ color: palette.text }}>{s.replace(/&quot;/g, '"')}</Small>
+                <Small style={{ color: palette.text }}>{s}</Small>
               </Pressable>
             ))}
           </View>
