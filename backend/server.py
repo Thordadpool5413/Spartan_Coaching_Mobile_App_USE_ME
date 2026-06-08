@@ -70,6 +70,9 @@ if RESEND_API_KEY:
 client = AsyncIOMotorClient(
     MONGO_URL,
     tlsCAFile=certifi.where() if MONGO_URL and "mongodb+srv" in MONGO_URL else None,
+    serverSelectionTimeoutMS=5000,
+    connectTimeoutMS=5000,
+    socketTimeoutMS=5000,
 )
 db = client[DB_NAME]
 

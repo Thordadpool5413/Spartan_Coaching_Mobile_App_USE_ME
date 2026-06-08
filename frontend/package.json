@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "scripts": {
-    "start": "BROWSER=none EXPO_NO_TELEMETRY=1 CI=1 expo start --web --port 3000",
+    "start": "BROWSER=none EXPO_NO_TELEMETRY=1 CI=1 expo start --web --port 5000",
     "ios": "expo start --ios",
     "android": "expo start --android",
     "web": "expo start --web --port 3000",
