@@ -11,7 +11,7 @@ const SECTIONS = [
   },
   {
     title: 'II. Preparation is a moral act.',
-    body: 'You do not show up unprepared to the most important conversations in people&apos;s lives. A physician who says &quot;not yet&quot; deserves a rep who knows how to respond. A family who is scared deserves someone who can explain what hospice actually is. Preparation is how we honor the gravity of the work.',
+    body: "You do not show up unprepared to the most important conversations in people's lives. A physician who says \"not yet\" deserves a rep who knows how to respond. A family who is scared deserves someone who can explain what hospice actually is. Preparation is how we honor the gravity of the work.",
   },
   {
     title: 'III. Discipline beats intensity.',
@@ -48,7 +48,7 @@ export default function ManifestoScreen() {
         {SECTIONS.map((s, i) => (
           <Card key={i} style={{ marginBottom: spacing.m }}>
             <H3 style={{ marginBottom: 8, color: palette.primary }}>{s.title}</H3>
-            <Body style={{ lineHeight: 24 }}>{s.body.replace(/&apos;/g, "'").replace(/&quot;/g, '"')}</Body>
+            <Body style={{ lineHeight: 24 }}>{s.body}</Body>
           </Card>
         ))}
 
