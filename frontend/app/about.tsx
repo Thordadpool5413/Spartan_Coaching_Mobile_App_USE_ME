@@ -1,5 +1,6 @@
 import React from 'react';
-import { ScrollView, View, Image, StyleSheet, Pressable, Linking } from 'react-native';
+import { ScrollView, View, Image, StyleSheet, Pressable } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -102,7 +103,7 @@ export default function AboutScreen() {
 
           {/* LinkedIn */}
           <Pressable
-            onPress={() => Linking.openURL('https://www.linkedin.com/in/nicholas-lynch-coaching')}
+            onPress={() => WebBrowser.openBrowserAsync('https://www.linkedin.com/in/nicholas-lynch-coaching')}
             style={({ pressed }) => [styles.linkedinBtn, { opacity: pressed ? 0.85 : 1 }]}
           >
             <Ionicons name="logo-linkedin" size={20} color="#0A66C2" />

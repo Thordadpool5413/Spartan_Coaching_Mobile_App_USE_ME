@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, View, StyleSheet, Linking, Pressable, ActivityIndicator } from 'react-native';
+import { ScrollView, View, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { palette, radius, spacing } from '../theme';
@@ -26,7 +27,7 @@ export default function ArticlesScreen() {
           <Pressable
             key={a.id}
             testID={`article-${a.id}`}
-            onPress={() => Linking.openURL(a.linkedinUrl).catch(() => {})}
+            onPress={() => WebBrowser.openBrowserAsync(a.linkedinUrl)}
             style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1, marginBottom: spacing.m })}
           >
             <Card>

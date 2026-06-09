@@ -9,8 +9,8 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
-  Linking,
 } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -534,7 +534,7 @@ export default function ServicesScreen() {
             </Small>
             <Pressable
               testID="book-tos"
-              onPress={() => Linking.openURL(TERMS_URL)}
+              onPress={() => WebBrowser.openBrowserAsync(TERMS_URL)}
               style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: spacing.xs ?? 4 }}
             >
               <Small dim style={{ textAlign: 'center' }}>
