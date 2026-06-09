@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { ScrollView, View, StyleSheet, Pressable } from 'react-native';
+import { ScrollView, View, StyleSheet, Pressable, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { palette, radius, spacing } from '../theme';
 import { Card, GhostButton, H1, H3, Body, Small, SectionLabel } from '../components/UI';
+
+const PRIVACY_POLICY_URL = 'https://spartanhospicecoaching.com/privacy';
 
 type LegalSection = {
   id: string;
@@ -23,7 +25,7 @@ const SECTIONS: LegalSection[] = [
       'Spartan Coaching collects only the information needed to deliver coaching services and respond to inquiries — your name, email, company, and the questions you ask.',
     bullets: [
       'We never sell, rent, or trade your personal data.',
-      'We use Resend to send transactional email and MongoDB Atlas to store contact submissions.',
+      'We use Resend to send transactional email and a PostgreSQL database to store contact submissions.',
       'AI conversations through the app are processed by OpenAI under our enterprise terms; no PHI is stored or transmitted.',
       'You may request deletion of any personal data we hold by emailing nick@spartanhospicecoaching.com.',
       'We use device-scoped IDs (not personal identifiers) to track drill streaks; no account required.',
@@ -159,7 +161,18 @@ export default function LegalScreen() {
           );
         })}
 
-        <View style={{ marginTop: spacing.l }}>
+        <View style={{ marginTop: spacing.l, gap: spacing.m }}>
+          <Pressable
+            testID="legal-privacy-url"
+            onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
+            style={styles.privacyLink}
+          >
+            <Ionicons name="globe-outline" size={16} color={palette.primary} />
+            <Small style={{ color: palette.primary, fontWeight: '600' }}>
+              View full Privacy Policy online
+            </Small>
+            <Ionicons name="open-outline" size={14} color={palette.primary} />
+          </Pressable>
           <GhostButton
             testID="legal-contact"
             label="Request full documents"
@@ -189,4 +202,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   bullet: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', marginBottom: 8 },
+  privacyLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    justifyContent: 'center',
+    paddingVertical: spacing.s,
+  },
 });

@@ -17,10 +17,25 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.spartancoaching.app",
       "buildNumber": "1",
+      "splash": {
+        "image": "./assets/images/spartan-logo.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#0a0a0a"
+      },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": ["remote-notification"],
-        "NSUserNotificationUsageDescription": "Spartan Coaching uses notifications to send you a daily drill reminder so you can keep your streak."
+        "NSUserNotificationUsageDescription": "Spartan Coaching uses notifications to send you a daily drill reminder so you can keep your streak.",
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp",
+            "NSPrivacyAccessedAPITypeReasons": ["C617.1"]
+          }
+        ]
       }
     },
     "android": {
