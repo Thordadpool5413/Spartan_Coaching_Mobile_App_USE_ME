@@ -239,6 +239,130 @@ async def privacy_policy():
     return HTMLResponse(content=_PRIVACY_HTML, status_code=200)
 
 
+_TERMS_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Terms of Service — Spartan Coaching</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #0d0d0d;
+      color: #e5e5e5;
+      line-height: 1.7;
+      padding: 2rem 1rem 4rem;
+    }
+    .container { max-width: 720px; margin: 0 auto; }
+    header { margin-bottom: 2.5rem; }
+    header .brand { font-size: 0.85rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #f97316; margin-bottom: 0.75rem; }
+    h1 { font-size: 2rem; font-weight: 700; color: #fff; margin-bottom: 0.5rem; }
+    .subtitle { color: #999; font-size: 0.9rem; }
+    section { margin-bottom: 2rem; }
+    h2 { font-size: 1.1rem; font-weight: 600; color: #fff; margin-bottom: 0.75rem; padding-bottom: 0.4rem; border-bottom: 1px solid #222; }
+    p { color: #ccc; margin-bottom: 0.75rem; }
+    ul { list-style: none; padding: 0; }
+    ul li { color: #ccc; padding: 0.35rem 0 0.35rem 1.4rem; position: relative; }
+    ul li::before { content: "✓"; position: absolute; left: 0; color: #f97316; font-size: 0.85rem; }
+    a { color: #f97316; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid #222; font-size: 0.8rem; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="brand">Spartan Coaching</div>
+      <h1>Terms of Service</h1>
+      <p class="subtitle">Effective date: January 1, 2025 &nbsp;·&nbsp; Last updated: June 2025</p>
+    </header>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        Use of the Spartan Coaching app and any coaching engagement is governed by these terms.
+        By using the app you agree to them.
+      </p>
+    </section>
+
+    <section>
+      <h2>Permitted Use</h2>
+      <ul>
+        <li>Content in the app (drills, knowledge base, role-play, articles) is for educational use by hospice sales professionals.</li>
+        <li>AI-generated coaching is a tool, not a substitute for your judgment or your compliance officer.</li>
+        <li>You agree not to use the app to share PHI, defame third parties, or circumvent rate limits.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Coaching Engagements</h2>
+      <p>
+        Paid coaching engagements (sessions purchased through the app) are governed by a separate
+        written services agreement provided at the time of purchase. These Terms of Service apply
+        to your use of the app itself.
+      </p>
+    </section>
+
+    <section>
+      <h2>Intellectual Property</h2>
+      <p>
+        All content, drills, exercises, and materials in the Spartan Coaching app are the exclusive
+        property of Spartan Coaching. You may not reproduce, distribute, or create derivative works
+        without prior written permission.
+      </p>
+    </section>
+
+    <section>
+      <h2>Disclaimer of Warranties</h2>
+      <p>
+        The app is provided &ldquo;as is&rdquo; without warranties of any kind, express or implied.
+        Spartan Coaching does not warrant that the service will be uninterrupted, error-free, or
+        free of harmful components.
+      </p>
+    </section>
+
+    <section>
+      <h2>Limitation of Liability</h2>
+      <p>
+        To the fullest extent permitted by law, Spartan Coaching shall not be liable for any
+        indirect, incidental, or consequential damages arising from your use of the app or any
+        coaching materials.
+      </p>
+    </section>
+
+    <section>
+      <h2>Changes to These Terms</h2>
+      <p>
+        We may update these terms with notice provided in the app. Continued use of the app after
+        an update constitutes acceptance of the revised terms. The &ldquo;Last updated&rdquo; date
+        at the top of this page reflects the most recent revision.
+      </p>
+    </section>
+
+    <section>
+      <h2>Contact</h2>
+      <p>
+        Spartan Coaching<br />
+        Nick Lynch<br />
+        <a href="mailto:nick@spartanhospicecoaching.com">nick@spartanhospicecoaching.com</a>
+      </p>
+    </section>
+
+    <footer>
+      &copy; 2025 Spartan Coaching. All rights reserved. &nbsp;·&nbsp;
+      <a href="/privacy">Privacy Policy</a>
+    </footer>
+  </div>
+</body>
+</html>"""
+
+
+@app.get("/terms", response_class=HTMLResponse, include_in_schema=False)
+async def terms_of_service():
+    return HTMLResponse(content=_TERMS_HTML, status_code=200)
+
+
 # ---------- Database schema ----------
 _CREATE_TABLES = [
     """
