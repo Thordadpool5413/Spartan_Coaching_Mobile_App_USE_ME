@@ -1,16 +1,27 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { ScrollView, View, Text, TextInput, Pressable, Switch, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { palette, radius, spacing } from '../theme';
 import { Card, PrimaryButton, GhostButton, H1, H2, H3, Body, Small, SectionLabel } from '../components/UI';
-import { adminOverview, adminContacts, adminEligibility, AdminOverview } from '../lib/api';
+import {
+  adminOverview, adminContacts, adminEligibility, AdminOverview,
+  adminCreateArticle, adminUpdateArticle, getArticles,
+  Article, ArticlePayload,
+} from '../lib/api';
 
 const TOKEN_KEY = 'spartan_admin_token';
 
-type Tab = 'overview' | 'contacts' | 'eligibility';
+type Tab = 'overview' | 'contacts' | 'eligibility' | 'articles';
+type ArticleView = 'list' | 'form';
+
+const TAB_LABELS: Record<Tab, string> = {
+  overview: 'OVERVIEW',
+  contacts: 'CONTACTS',
+  eligibility: 'ELIG.',
+  articles: 'ARTICLES',
+};
 
 export default function AdminScreen() {
   const [token, setToken] = useState('');
@@ -20,7 +31,10 @@ export default function AdminScreen() {
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [contacts, setContacts] = useState<any[]>([]);
   const [elig, setElig] = useState<any[]>([]);
+  const [articles, setArticles] = useState<Article[]>([]);
   const [tab, setTab] = useState<Tab>('overview');
+  const [articleView, setArticleView] = useState<ArticleView>('list');
+  const [editingArticle, setEditingArticle] = useState<Article | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -37,10 +51,16 @@ export default function AdminScreen() {
     setLoading(true);
     setError(null);
     try {
-      const [ov, c, e] = await Promise.all([adminOverview(t), adminContacts(t), adminEligibility(t)]);
+      const [ov, c, e, arts] = await Promise.all([
+        adminOverview(t),
+        adminContacts(t),
+        adminEligibility(t),
+        getArticles(),
+      ]);
       setOverview(ov);
       setContacts(c.items || []);
       setElig(e.items || []);
+      setArticles(arts.articles || []);
       setAuthed(true);
       await AsyncStorage.setItem(TOKEN_KEY, t);
     } catch (err: any) {
@@ -53,6 +73,11 @@ export default function AdminScreen() {
     }
   };
 
+  const loadArticles = async () => {
+    const arts = await getArticles();
+    setArticles(arts.articles || []);
+  };
+
   const logout = async () => {
     await AsyncStorage.removeItem(TOKEN_KEY);
     setAuthed(false);
@@ -60,6 +85,12 @@ export default function AdminScreen() {
     setOverview(null);
     setContacts([]);
     setElig([]);
+    setArticles([]);
+  };
+
+  const switchTab = (t: Tab) => {
+    setTab(t);
+    setArticleView('list');
   };
 
   if (!authed) {
@@ -104,18 +135,18 @@ export default function AdminScreen() {
   return (
     <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
       <View style={styles.tabBar}>
-        {(['overview', 'contacts', 'eligibility'] as const).map((t) => (
+        {(['overview', 'contacts', 'eligibility', 'articles'] as const).map((t) => (
           <Pressable
             key={t}
             testID={`admin-tab-${t}`}
-            onPress={() => setTab(t)}
+            onPress={() => switchTab(t)}
             style={({ pressed }) => [
               styles.tabBtn,
               tab === t && styles.tabBtnActive,
               { opacity: pressed ? 0.8 : 1 },
             ]}
           >
-            <Text style={[styles.tabText, tab === t && { color: palette.primary }]}>{t.toUpperCase()}</Text>
+            <Text style={[styles.tabText, tab === t && { color: palette.primary }]}>{TAB_LABELS[t]}</Text>
           </Pressable>
         ))}
         <Pressable testID="admin-logout" onPress={logout} style={styles.tabIconBtn}>
@@ -123,12 +154,242 @@ export default function AdminScreen() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }}>
+      <ScrollView
+        contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }}
+        keyboardShouldPersistTaps="handled"
+      >
         {tab === 'overview' && overview ? <OverviewView overview={overview} /> : null}
         {tab === 'contacts' ? <ContactsView items={contacts} /> : null}
         {tab === 'eligibility' ? <EligibilityListView items={elig} /> : null}
+        {tab === 'articles' ? (
+          articleView === 'list' ? (
+            <ArticlesListView
+              articles={articles}
+              onNew={() => { setEditingArticle(null); setArticleView('form'); }}
+              onEdit={(a) => { setEditingArticle(a); setArticleView('form'); }}
+            />
+          ) : (
+            <ArticleFormView
+              token={token}
+              article={editingArticle}
+              onSaved={async () => {
+                await loadArticles();
+                setArticleView('list');
+              }}
+              onCancel={() => setArticleView('list')}
+            />
+          )
+        ) : null}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function ArticlesListView({
+  articles,
+  onNew,
+  onEdit,
+}: {
+  articles: Article[];
+  onNew: () => void;
+  onEdit: (a: Article) => void;
+}) {
+  return (
+    <>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.l }}>
+        <H2>Articles</H2>
+        <Pressable onPress={onNew} style={styles.newBtn} hitSlop={8}>
+          <Ionicons name="add" size={16} color="#fff" />
+          <Small style={{ color: '#fff', fontWeight: '800' }}>New</Small>
+        </Pressable>
+      </View>
+      {articles.length === 0 && <Body dim>No articles yet.</Body>}
+      {articles.map((a) => (
+        <Card key={a.id} style={{ marginBottom: spacing.m }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ flex: 1, marginRight: spacing.m }}>
+              <H3 numberOfLines={2} style={{ marginBottom: 6 }}>{a.title}</H3>
+              <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                <View style={[styles.chip, { backgroundColor: a.body ? '#16a34a20' : palette.bgElev3 }]}>
+                  <Small style={{ color: a.body ? '#16a34a' : palette.textMuted, fontWeight: '700', fontSize: 10 }}>
+                    {a.body ? 'HAS BODY' : 'NO BODY'}
+                  </Small>
+                </View>
+                {a.featured && (
+                  <View style={[styles.chip, { backgroundColor: palette.primaryTint }]}>
+                    <Small style={{ color: palette.primary, fontWeight: '700', fontSize: 10 }}>FEATURED</Small>
+                  </View>
+                )}
+              </View>
+            </View>
+            <Pressable onPress={() => onEdit(a)} style={styles.editBtn} hitSlop={8}>
+              <Ionicons name="pencil-outline" size={18} color={palette.primary} />
+            </Pressable>
+          </View>
+        </Card>
+      ))}
+    </>
+  );
+}
+
+function ArticleFormView({
+  token,
+  article,
+  onSaved,
+  onCancel,
+}: {
+  token: string;
+  article: Article | null;
+  onSaved: () => Promise<void>;
+  onCancel: () => void;
+}) {
+  const isNew = !article;
+  const today = new Date().toISOString().split('T')[0];
+
+  const [title, setTitle] = useState(article?.title ?? '');
+  const [description, setDescription] = useState(article?.description ?? '');
+  const [body, setBody] = useState(article?.body ?? '');
+  const [publishDate, setPublishDate] = useState(article?.publishDate ?? today);
+  const [featured, setFeatured] = useState(article?.featured ?? false);
+  const [linkedinUrl, setLinkedinUrl] = useState(article?.linkedinUrl ?? '');
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const handleSave = async () => {
+    if (!title.trim()) { setFormError('Title is required.'); return; }
+    if (!description.trim()) { setFormError('Description is required.'); return; }
+    if (!publishDate.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(publishDate.trim())) {
+      setFormError('Publish date must be in YYYY-MM-DD format.');
+      return;
+    }
+    setSaving(true);
+    setFormError(null);
+    try {
+      const payload: ArticlePayload = {
+        title: title.trim(),
+        description: description.trim(),
+        body: body.trim() || undefined,
+        linkedinUrl: linkedinUrl.trim() || undefined,
+        publishDate: publishDate.trim(),
+        featured,
+      };
+      if (isNew) {
+        await adminCreateArticle(token, payload);
+      } else {
+        await adminUpdateArticle(token, article!.id, payload);
+      }
+      await onSaved();
+    } catch (e: any) {
+      const detail = e?.response?.data?.detail;
+      setFormError(detail || 'Failed to save. Check your connection and try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <Pressable onPress={onCancel} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: spacing.l }}>
+        <Ionicons name="arrow-back" size={20} color={palette.text} />
+        <Small style={{ color: palette.text }}>Back to list</Small>
+      </Pressable>
+
+      <H2 style={{ marginBottom: spacing.l }}>{isNew ? 'New Article' : 'Edit Article'}</H2>
+
+      <Card style={{ gap: spacing.m, marginBottom: spacing.m }}>
+        <View>
+          <Small style={styles.fieldLabel}>Title *</Small>
+          <TextInput
+            value={title}
+            onChangeText={setTitle}
+            placeholder="Article title"
+            placeholderTextColor={palette.textFaint}
+            style={styles.fieldInput}
+            autoCapitalize="words"
+          />
+        </View>
+
+        <View>
+          <Small style={styles.fieldLabel}>Description * (shown on the list card)</Small>
+          <TextInput
+            value={description}
+            onChangeText={setDescription}
+            placeholder="One or two sentence summary"
+            placeholderTextColor={palette.textFaint}
+            style={[styles.fieldInput, styles.fieldInputMulti]}
+            multiline
+            numberOfLines={3}
+            textAlignVertical="top"
+          />
+        </View>
+
+        <View>
+          <Small style={styles.fieldLabel}>Article body (markdown — supports **bold**, ## headings, - lists)</Small>
+          <TextInput
+            value={body}
+            onChangeText={setBody}
+            placeholder={"# Article Title\n\nWrite the full article here.\n\nStart new paragraphs with a blank line.\n\n## Section Heading\n\nMore content..."}
+            placeholderTextColor={palette.textFaint}
+            style={[styles.fieldInput, styles.fieldInputBody]}
+            multiline
+            numberOfLines={16}
+            textAlignVertical="top"
+            autoCorrect={false}
+            autoCapitalize="sentences"
+          />
+        </View>
+
+        <View>
+          <Small style={styles.fieldLabel}>Publish date (YYYY-MM-DD) *</Small>
+          <TextInput
+            value={publishDate}
+            onChangeText={setPublishDate}
+            placeholder="2026-01-15"
+            placeholderTextColor={palette.textFaint}
+            style={styles.fieldInput}
+            keyboardType="numbers-and-punctuation"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        </View>
+
+        <View>
+          <Small style={styles.fieldLabel}>LinkedIn URL (optional)</Small>
+          <TextInput
+            value={linkedinUrl}
+            onChangeText={setLinkedinUrl}
+            placeholder="https://www.linkedin.com/pulse/..."
+            placeholderTextColor={palette.textFaint}
+            style={styles.fieldInput}
+            keyboardType="url"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        </View>
+
+        <View style={styles.switchRow}>
+          <Small style={{ color: palette.text, fontWeight: '700' }}>Featured</Small>
+          <Switch
+            value={featured}
+            onValueChange={setFeatured}
+            trackColor={{ false: palette.bgElev3, true: palette.primary }}
+            thumbColor="#fff"
+          />
+        </View>
+      </Card>
+
+      {formError ? (
+        <Small style={{ color: palette.primary, marginBottom: spacing.m }}>{formError}</Small>
+      ) : null}
+
+      <PrimaryButton
+        label={saving ? 'Saving…' : isNew ? 'Publish Article' : 'Save Changes'}
+        onPress={handleSave}
+        disabled={saving}
+        icon={saving ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="checkmark" size={16} color="#fff" />}
+      />
+      <GhostButton label="Cancel" onPress={onCancel} style={{ marginTop: spacing.s }} />
+    </>
   );
 }
 
@@ -147,7 +408,6 @@ function OverviewView({ overview }: { overview: AdminOverview }) {
         <StatCard icon="chatbubbles" label="Coach Chats" value={overview.ai_chat.last_7_days} sub={`${overview.ai_chat.total} all-time`} color="#3b82f6" />
       </View>
 
-      {/* Verdict breakdown */}
       <Card style={{ marginTop: spacing.l }}>
         <H3 style={{ marginBottom: spacing.m }}>Eligibility verdicts (30d)</H3>
         {Object.entries(overview.eligibility_checks.verdict_breakdown_30d).length === 0 ? (
@@ -284,7 +544,7 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   tabBtnActive: { borderBottomColor: palette.primary },
-  tabText: { color: palette.textMuted, fontSize: 11, fontWeight: '800', letterSpacing: 0.8 },
+  tabText: { color: palette.textMuted, fontSize: 10, fontWeight: '800', letterSpacing: 0.6 },
   tabIconBtn: { padding: 14 },
   statsRow: { flexDirection: 'row', gap: spacing.m, marginBottom: spacing.m },
   statCard: {
@@ -314,4 +574,47 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.m, borderBottomWidth: 1, borderColor: palette.divider,
   },
   verdictDot: { width: 10, height: 10, borderRadius: 5 },
+  newBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: palette.primary, paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: radius.pill,
+  },
+  chip: {
+    paddingHorizontal: 8, paddingVertical: 3,
+    borderRadius: radius.pill,
+  },
+  editBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: palette.primaryTint,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  fieldLabel: {
+    color: palette.textDim, fontWeight: '700', marginBottom: 6, fontSize: 12,
+  },
+  fieldInput: {
+    backgroundColor: palette.bgElev2,
+    borderColor: palette.cardBorderStrong,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: palette.text,
+    fontSize: 15,
+  },
+  fieldInputMulti: {
+    minHeight: 72,
+    textAlignVertical: 'top',
+  },
+  fieldInputBody: {
+    minHeight: 240,
+    textAlignVertical: 'top',
+    fontFamily: 'monospace',
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  switchRow: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.s,
+  },
 });
