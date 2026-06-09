@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, Dimensions, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -10,24 +10,28 @@ import { palette, spacing, radius } from '../theme';
 export const ONBOARDING_KEY = 'onboarding_v1_complete';
 const { width: SW } = Dimensions.get('window');
 
+const SPARTAN_CIRCLE = require('../assets/images/spartan-circle-logo.png');
+const ONBOARDING_AI = require('../assets/images/onboarding-ai.png');
+const ONBOARDING_DISCIPLINE = require('../assets/images/onboarding-discipline.png');
+
 const SLIDES = [
   {
-    icon: 'shield-checkmark' as const,
-    accent: palette.primary,
+    image: SPARTAN_CIRCLE,
+    imageStyle: { width: 200, height: 200, borderRadius: 100 },
     bg: ['#1a0808', '#0a0a0b'] as const,
     title: 'Built for hospice\nsales professionals',
     body: 'Spartan Coaching closes the gap between clinical knowledge and sales execution — one prepared conversation at a time.',
   },
   {
-    icon: 'sparkles' as const,
-    accent: '#f59e0b',
+    image: ONBOARDING_AI,
+    imageStyle: { width: 220, height: 220, borderRadius: 20 },
     bg: ['#0d0c08', '#0a0a0b'] as const,
     title: 'AI tools, built\nfor the field',
     body: 'Ask a hospice expert, handle objections, generate visit playbooks, and practice role-play scenarios — all from your pocket.',
   },
   {
-    icon: 'flame' as const,
-    accent: '#ef4444',
+    image: ONBOARDING_DISCIPLINE,
+    imageStyle: { width: 220, height: 220, borderRadius: 20 },
     bg: ['#1a0d0d', '#0a0a0b'] as const,
     title: 'Ten minutes a day\nbuilds the habit',
     body: 'Daily drills rotate through territory planning, objection handling, and clinical knowledge. Track your streak and stay sharp.',
@@ -69,14 +73,11 @@ export default function OnboardingScreen() {
       >
         {SLIDES.map((s, i) => (
           <LinearGradient key={i} colors={s.bg} style={[styles.slide, { width: SW }]}>
-            <View
-              style={[
-                styles.iconWrap,
-                { backgroundColor: s.accent + '20', borderColor: s.accent + '50' },
-              ]}
-            >
-              <Ionicons name={s.icon} size={52} color={s.accent} />
-            </View>
+            <Image
+              source={s.image}
+              style={[styles.slideImage, s.imageStyle]}
+              resizeMode="contain"
+            />
             <Text style={styles.slideNum}>{i + 1} / {SLIDES.length}</Text>
             <Text style={styles.title}>{s.title}</Text>
             <Text style={styles.body}>{s.body}</Text>
@@ -132,13 +133,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xxxl,
     paddingBottom: 100,
   },
-  iconWrap: {
-    width: 110,
-    height: 110,
-    borderRadius: 32,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+  slideImage: {
     marginBottom: spacing.xxxl,
   },
   slideNum: {
