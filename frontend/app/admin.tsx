@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, View, Text, TextInput, Pressable, Switch, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { ScrollView, View, Text, TextInput, Pressable, Switch, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { palette, radius, spacing } from '../theme';
-import { Card, PrimaryButton, GhostButton, H1, H2, H3, Body, Small, SectionLabel } from '../components/UI';
+import { Card, PrimaryButton, GhostButton, H2, H3, Body, Small, SectionLabel } from '../components/UI';
 import {
   adminOverview, adminContacts, adminEligibility, AdminOverview,
   adminCreateArticle, adminUpdateArticle, getArticles,
@@ -12,6 +12,7 @@ import {
 } from '../lib/api';
 
 const TOKEN_KEY = 'spartan_admin_token';
+const PIN_LENGTH = 4;
 
 type Tab = 'overview' | 'contacts' | 'eligibility' | 'articles';
 type ArticleView = 'list' | 'form';
@@ -22,6 +23,88 @@ const TAB_LABELS: Record<Tab, string> = {
   eligibility: 'ELIG.',
   articles: 'ARTICLES',
 };
+
+// ─── PIN pad ────────────────────────────────────────────────────────────────
+
+function PinPad({
+  onSubmit,
+  loading,
+  error,
+}: {
+  onSubmit: (pin: string) => void;
+  loading: boolean;
+  error: string | null;
+}) {
+  const [digits, setDigits] = useState<string[]>([]);
+
+  const press = (d: string) => {
+    if (loading) return;
+    const next = [...digits, d].slice(0, PIN_LENGTH);
+    setDigits(next);
+    if (next.length === PIN_LENGTH) {
+      onSubmit(next.join(''));
+      setDigits([]);
+    }
+  };
+
+  const del = () => {
+    if (loading) return;
+    setDigits((prev) => prev.slice(0, -1));
+  };
+
+  const PAD = ['1','2','3','4','5','6','7','8','9','','0','⌫'];
+
+  return (
+    <View style={pinStyles.wrap}>
+      <View style={pinStyles.lockIcon}>
+        <Ionicons name="lock-closed" size={32} color={palette.primary} />
+      </View>
+
+      <Text style={pinStyles.title}>Admin access</Text>
+      <Text style={pinStyles.subtitle}>Enter your PIN</Text>
+
+      {/* Dots */}
+      <View style={pinStyles.dotsRow}>
+        {Array.from({ length: PIN_LENGTH }).map((_, i) => (
+          <View
+            key={i}
+            style={[
+              pinStyles.dot,
+              i < digits.length && pinStyles.dotFilled,
+            ]}
+          />
+        ))}
+      </View>
+
+      {error ? <Text style={pinStyles.errorText}>{error}</Text> : null}
+      {loading ? <ActivityIndicator color={palette.primary} style={{ marginVertical: 8 }} /> : null}
+
+      {/* Keypad */}
+      <View style={pinStyles.grid}>
+        {PAD.map((key, idx) => {
+          if (key === '') return <View key={idx} style={pinStyles.keyEmpty} />;
+          const isDelete = key === '⌫';
+          return (
+            <Pressable
+              key={idx}
+              onPress={() => isDelete ? del() : press(key)}
+              style={({ pressed }) => [
+                pinStyles.key,
+                isDelete && pinStyles.keyDelete,
+                { opacity: pressed ? 0.6 : 1 },
+              ]}
+              disabled={loading}
+            >
+              <Text style={[pinStyles.keyText, isDelete && pinStyles.keyDeleteText]}>{key}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+// ─── Main screen ────────────────────────────────────────────────────────────
 
 export default function AdminScreen() {
   const [token, setToken] = useState('');
@@ -64,9 +147,8 @@ export default function AdminScreen() {
       setAuthed(true);
       await AsyncStorage.setItem(TOKEN_KEY, t);
     } catch (err: any) {
-      setError(err?.response?.status === 401 || err?.response?.status === 403
-        ? 'Invalid admin token.'
-        : 'Could not load admin data.');
+      const status = err?.response?.status;
+      setError(status === 401 || status === 403 ? 'Wrong PIN. Try again.' : 'Could not connect. Try again.');
       setAuthed(false);
     } finally {
       setLoading(false);
@@ -78,6 +160,11 @@ export default function AdminScreen() {
     setArticles(arts.articles || []);
   };
 
+  const handlePin = async (pin: string) => {
+    setToken(pin);
+    await loadAll(pin);
+  };
+
   const logout = async () => {
     await AsyncStorage.removeItem(TOKEN_KEY);
     setAuthed(false);
@@ -86,6 +173,7 @@ export default function AdminScreen() {
     setContacts([]);
     setElig([]);
     setArticles([]);
+    setError(null);
   };
 
   const switchTab = (t: Tab) => {
@@ -96,38 +184,7 @@ export default function AdminScreen() {
   if (!authed) {
     return (
       <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
-        <ScrollView contentContainerStyle={{ padding: spacing.l, paddingTop: spacing.xxl }}>
-          <View style={styles.lockWrap}>
-            <Ionicons name="lock-closed" size={36} color={palette.primary} />
-          </View>
-          <H2 style={{ marginTop: spacing.l, textAlign: 'center' }}>Admin access</H2>
-          <Body dim style={{ textAlign: 'center', marginTop: spacing.s, marginBottom: spacing.xl }}>
-            Enter the admin token to view contacts, eligibility checks, and usage analytics.
-          </Body>
-          <Card>
-            <Small style={{ color: palette.text, fontWeight: '700', marginBottom: 6 }}>Admin token</Small>
-            <TextInput
-              testID="admin-token"
-              value={token}
-              onChangeText={setToken}
-              placeholder="Enter token"
-              placeholderTextColor={palette.textFaint}
-              style={styles.input}
-              secureTextEntry
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            {error ? <Small style={{ color: palette.primary, marginTop: spacing.s }}>{error}</Small> : null}
-            <PrimaryButton
-              testID="admin-login"
-              label={loading ? 'Verifying…' : 'Sign in'}
-              onPress={() => loadAll(token)}
-              disabled={loading || !token.trim()}
-              style={{ marginTop: spacing.l }}
-              icon={loading ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="key" size={14} color="#fff" />}
-            />
-          </Card>
-        </ScrollView>
+        <PinPad onSubmit={handlePin} loading={loading} error={error} />
       </SafeAreaView>
     );
   }
@@ -185,6 +242,8 @@ export default function AdminScreen() {
   );
 }
 
+// ─── Articles list ───────────────────────────────────────────────────────────
+
 function ArticlesListView({
   articles,
   onNew,
@@ -232,6 +291,8 @@ function ArticlesListView({
   );
 }
 
+// ─── Article form ────────────────────────────────────────────────────────────
+
 function ArticleFormView({
   token,
   article,
@@ -259,7 +320,7 @@ function ArticleFormView({
     if (!title.trim()) { setFormError('Title is required.'); return; }
     if (!description.trim()) { setFormError('Description is required.'); return; }
     if (!publishDate.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(publishDate.trim())) {
-      setFormError('Publish date must be in YYYY-MM-DD format.');
+      setFormError('Publish date must be in YYYY-MM-DD format (e.g. 2026-06-09).');
       return;
     }
     setSaving(true);
@@ -324,7 +385,7 @@ function ArticleFormView({
         </View>
 
         <View>
-          <Small style={styles.fieldLabel}>Article body (markdown — supports **bold**, ## headings, - lists)</Small>
+          <Small style={styles.fieldLabel}>Article body (markdown — **bold**, ## headings, - lists)</Small>
           <TextInput
             value={body}
             onChangeText={setBody}
@@ -344,7 +405,7 @@ function ArticleFormView({
           <TextInput
             value={publishDate}
             onChangeText={setPublishDate}
-            placeholder="2026-01-15"
+            placeholder="2026-06-09"
             placeholderTextColor={palette.textFaint}
             style={styles.fieldInput}
             keyboardType="numbers-and-punctuation"
@@ -393,12 +454,13 @@ function ArticleFormView({
   );
 }
 
+// ─── Overview / Contacts / Eligibility (unchanged) ──────────────────────────
+
 function OverviewView({ overview }: { overview: AdminOverview }) {
   return (
     <>
       <SectionLabel>Last 30 days</SectionLabel>
       <H2 style={{ marginBottom: spacing.l }}>Spartan Coaching Admin</H2>
-
       <View style={styles.statsRow}>
         <StatCard icon="mail" label="Contacts" value={overview.contacts.last_30_days} sub={`${overview.contacts.total} all-time`} color={palette.primary} />
         <StatCard icon="medical" label="Elig. Checks" value={overview.eligibility_checks.last_7_days} sub="last 7d" color="#16a34a" />
@@ -407,7 +469,6 @@ function OverviewView({ overview }: { overview: AdminOverview }) {
         <StatCard icon="flame" label="Drills Done" value={overview.drills.total_completions} sub={`${overview.drills.unique_users} users`} color="#f59e0b" />
         <StatCard icon="chatbubbles" label="Coach Chats" value={overview.ai_chat.last_7_days} sub={`${overview.ai_chat.total} all-time`} color="#3b82f6" />
       </View>
-
       <Card style={{ marginTop: spacing.l }}>
         <H3 style={{ marginBottom: spacing.m }}>Eligibility verdicts (30d)</H3>
         {Object.entries(overview.eligibility_checks.verdict_breakdown_30d).length === 0 ? (
@@ -424,7 +485,6 @@ function OverviewView({ overview }: { overview: AdminOverview }) {
           ))
         )}
       </Card>
-
       <Card style={{ marginTop: spacing.l }}>
         <H3 style={{ marginBottom: spacing.m }}>Top diagnoses (30d)</H3>
         {overview.eligibility_checks.top_diagnoses_30d.length === 0 ? (
@@ -438,7 +498,6 @@ function OverviewView({ overview }: { overview: AdminOverview }) {
           ))
         )}
       </Card>
-
       <Small dim style={{ marginTop: spacing.l, textAlign: 'center' }}>
         Last updated: {new Date(overview.generated_at).toLocaleString()}
       </Small>
@@ -512,22 +571,89 @@ function verdictBarColor(verdict: string) {
   return '#6b7280';
 }
 
-const styles = StyleSheet.create({
-  lockWrap: {
-    width: 72, height: 72, borderRadius: 36, alignSelf: 'center',
-    backgroundColor: palette.primaryTint, borderWidth: 1, borderColor: palette.primary + '40',
+// ─── Styles ──────────────────────────────────────────────────────────────────
+
+const pinStyles = StyleSheet.create({
+  wrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xl,
+    paddingBottom: 40,
+  },
+  lockIcon: {
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: palette.primaryTint,
+    borderWidth: 1, borderColor: palette.primary + '40',
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: spacing.l,
+  },
+  title: {
+    color: palette.text,
+    fontSize: 24,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+    marginBottom: spacing.s,
+  },
+  subtitle: {
+    color: palette.textMuted,
+    fontSize: 14,
+    marginBottom: spacing.xl,
+  },
+  dotsRow: {
+    flexDirection: 'row',
+    gap: 20,
+    marginBottom: spacing.m,
+  },
+  dot: {
+    width: 16, height: 16, borderRadius: 8,
+    borderWidth: 2, borderColor: palette.cardBorderStrong,
+    backgroundColor: 'transparent',
+  },
+  dotFilled: {
+    backgroundColor: palette.primary,
+    borderColor: palette.primary,
+  },
+  errorText: {
+    color: palette.primary,
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: spacing.s,
+    textAlign: 'center',
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    width: 280,
+    marginTop: spacing.l,
+    gap: 12,
+  },
+  key: {
+    width: 82, height: 64,
+    borderRadius: radius.lg,
+    backgroundColor: palette.bgElev1,
+    borderWidth: 1, borderColor: palette.cardBorder,
     alignItems: 'center', justifyContent: 'center',
   },
-  input: {
-    backgroundColor: palette.bgElev2,
-    borderColor: palette.cardBorderStrong,
-    borderWidth: 1,
-    borderRadius: radius.md,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    color: palette.text,
-    fontSize: 15,
+  keyEmpty: {
+    width: 82, height: 64,
   },
+  keyDelete: {
+    backgroundColor: 'transparent',
+    borderColor: 'transparent',
+  },
+  keyText: {
+    color: palette.text,
+    fontSize: 22,
+    fontWeight: '600',
+  },
+  keyDeleteText: {
+    color: palette.textMuted,
+    fontSize: 20,
+  },
+});
+
+const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row',
     alignItems: 'center',
