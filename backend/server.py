@@ -490,6 +490,8 @@ _CREATE_TABLES = [
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_tl_code ON team_licenses(code)",
+    # Idempotency: prevent duplicate licenses from Stripe webhook replays
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_tl_sub_id ON team_licenses(stripe_subscription_id) WHERE stripe_subscription_id IS NOT NULL",
 ]
 
 _SEED_ARTICLES = [
@@ -2375,8 +2377,19 @@ async def stripe_webhook(request: Request):
                         or obj.get("customer_details", {}).get("email")
                         or None
                     )
-                    try:
-                        async with pool.acquire() as conn:
+                    # DB provisioning is fail-closed: any exception propagates → non-200 → Stripe retries
+                    code: Optional[str] = None
+                    async with pool.acquire() as conn:
+                        # Idempotency: if this subscription already has a license, skip re-provisioning
+                        existing_license = await conn.fetchrow(
+                            "SELECT code, contact_email FROM team_licenses WHERE stripe_subscription_id = $1",
+                            sub_id,
+                        ) if sub_id else None
+                        if existing_license:
+                            code = existing_license["code"]
+                            contact_email = contact_email or existing_license["contact_email"]
+                            logger.info("team license already exists for sub=%s code=%s (idempotent replay)", sub_id, code)
+                        else:
                             code = await _generate_team_code(conn)
                             await conn.execute(
                                 """INSERT INTO team_licenses
@@ -2386,11 +2399,11 @@ async def stripe_webhook(request: Request):
                                 code, customer_id, sub_id,
                                 company_name, contact_email, seat_count,
                             )
-                        logger.info("team license created: code=%s seats=%d customer=%s", code, seat_count, customer_id)
-                        # Send email to purchaser
-                        if RESEND_API_KEY and contact_email:
-                            display_company = company_name or "your organization"
-                            body_html = f"""
+                            logger.info("team license created: code=%s seats=%d customer=%s", code, seat_count, customer_id)
+                    # Email delivery is best-effort — failure does not block Stripe acknowledgement
+                    if code and RESEND_API_KEY and contact_email:
+                        display_company = company_name or "your organization"
+                        body_html = f"""
 <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#0a0a0b;color:#e5e5e5;padding:40px 24px;max-width:600px;margin:0 auto;">
   <p style="font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#ef4444;margin:0 0 16px;">Spartan Coaching</p>
   <h1 style="font-size:28px;font-weight:800;color:#fff;margin:0 0 8px;">Your team license is active</h1>
@@ -2414,22 +2427,20 @@ async def stripe_webhook(request: Request):
   <hr style="border:none;border-top:1px solid #26262c;margin:28px 0;"/>
   <p style="font-size:12px;color:#52525b;margin:0;">Questions? Reply to this email or reach out to <a href="mailto:nick@spartanhospicecoaching.com" style="color:#ef4444;">nick@spartanhospicecoaching.com</a></p>
 </div>"""
-                            try:
-                                loop2 = asyncio.get_event_loop()
-                                await loop2.run_in_executor(
-                                    None,
-                                    lambda: resend.Emails.send({
-                                        "from": f"{RESEND_FROM_NAME} <{RESEND_FROM_EMAIL}>",
-                                        "to": [contact_email],
-                                        "subject": "Your Spartan Coaching team license is active",
-                                        "html": body_html,
-                                    }),
-                                )
-                                logger.info("team license email sent to %s", contact_email)
-                            except Exception as email_exc:
-                                logger.error("team license email failed: %s", email_exc)
-                    except Exception as team_exc:
-                        logger.exception("team license creation failed: %s", team_exc)
+                        try:
+                            loop2 = asyncio.get_event_loop()
+                            await loop2.run_in_executor(
+                                None,
+                                lambda: resend.Emails.send({
+                                    "from": f"{RESEND_FROM_NAME} <{RESEND_FROM_EMAIL}>",
+                                    "to": [contact_email],
+                                    "subject": "Your Spartan Coaching team license is active",
+                                    "html": body_html,
+                                }),
+                            )
+                            logger.info("team license email sent to %s", contact_email)
+                        except Exception as email_exc:
+                            logger.error("team license email failed: %s", email_exc)
             else:
                 # ---- Individual Pro subscription ----
                 if device_id and customer_id and pool:
