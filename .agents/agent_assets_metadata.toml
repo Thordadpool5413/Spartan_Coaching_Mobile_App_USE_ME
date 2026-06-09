@@ -1,5 +1,16 @@
 uploads = []
-generated = []
+
+[[generated]]
+id = "L5mtV3CL54zi5PSMJz4AM"
+uri = "file://frontend/assets/images/onboarding-ai.png"
+type = "image"
+title = "onboarding ai tools screen"
+
+[[generated]]
+id = "g5Cgi7uly4iLAdBzY-xyJ"
+uri = "file://frontend/assets/images/onboarding-discipline.png"
+type = "image"
+title = "onboarding daily discipline screen"
 
 [[outputs]]
 id = "E8eBy-acKNgTZaMCDhegC"
