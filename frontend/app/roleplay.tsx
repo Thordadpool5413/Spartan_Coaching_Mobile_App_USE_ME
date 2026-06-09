@@ -23,7 +23,7 @@ export default function RoleplayIndex() {
   return (
     <PaywallGate feature="Role-Play Practice">
     <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }}>
+      <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <SectionLabel>AI Practice</SectionLabel>
         <H2 style={{ marginBottom: spacing.s }}>Role-Play Practice</H2>
         <Body dim style={{ marginBottom: spacing.l }}>

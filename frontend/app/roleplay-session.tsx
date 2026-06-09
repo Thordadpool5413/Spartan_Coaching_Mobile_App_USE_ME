@@ -54,7 +54,7 @@ export default function RoleplaySession() {
   if (feedback) {
     return (
       <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
-        <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 60 }}>
+        <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
           <SectionLabel>Session Complete</SectionLabel>
           <H2 style={{ marginBottom: spacing.s }}>{title}</H2>
 
@@ -109,7 +109,7 @@ export default function RoleplaySession() {
           </Pressable>
         </View>
 
-        <ScrollView ref={scrollRef} contentContainerStyle={{ padding: spacing.l, paddingBottom: 20, gap: spacing.m }}>
+        <ScrollView ref={scrollRef} contentContainerStyle={{ padding: spacing.l, paddingBottom: 20, gap: spacing.m }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           {messages.length === 0 && (
             <View style={{ alignItems: 'center', paddingVertical: spacing.xxxl }}>
               <View style={styles.heroIcon}><Ionicons name="people" size={28} color={palette.primary} /></View>

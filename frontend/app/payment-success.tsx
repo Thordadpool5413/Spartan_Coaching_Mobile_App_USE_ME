@@ -65,7 +65,7 @@ export default function PaymentSuccessScreen() {
 
   return (
     <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }}>
+      <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
         <SectionLabel>Booking Status</SectionLabel>
         <H1 style={{ marginBottom: spacing.l }}>
           {phase === 'paid'

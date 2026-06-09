@@ -103,7 +103,7 @@ export default function TeamCheckoutScreen() {
 
   return (
     <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }}>
+      <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <Pressable
           onPress={() => router.back()}
           style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: spacing.l }}

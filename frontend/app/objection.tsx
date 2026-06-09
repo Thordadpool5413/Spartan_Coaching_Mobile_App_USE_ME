@@ -40,7 +40,7 @@ export default function ObjectionScreen() {
   return (
     <PaywallGate feature="Objection Handler">
     <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 100 }}>
+      <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 100 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <SectionLabel>AI Tool</SectionLabel>
         <H2 style={{ marginBottom: spacing.s }}>Objection Handler</H2>
         <Body dim style={{ marginBottom: spacing.l }}>

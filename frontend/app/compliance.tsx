@@ -23,7 +23,7 @@ const BOUNDARIES = [
 export default function ComplianceScreen() {
   return (
     <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }}>
+      <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
         <SectionLabel>Compliance & Ethics</SectionLabel>
         <H1 style={{ marginBottom: spacing.s }}>Our Compliance Posture</H1>
         <Body dim style={{ marginBottom: spacing.xl }}>

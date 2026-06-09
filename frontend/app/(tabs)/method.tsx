@@ -30,7 +30,7 @@ export default function MethodScreen() {
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: palette.bg }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 100, padding: spacing.l }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 120, padding: spacing.l }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={{ marginBottom: spacing.xxl }}>
           <SectionLabel>The Framework</SectionLabel>
           <H1>

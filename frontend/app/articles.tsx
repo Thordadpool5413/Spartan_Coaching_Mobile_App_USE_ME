@@ -16,7 +16,7 @@ export default function ArticlesScreen() {
   }, []);
   return (
     <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }}>
+      <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <SectionLabel>Articles & Insights</SectionLabel>
         <H1 style={{ marginBottom: spacing.s }}>Field-tested writing on hospice growth</H1>
         <Body dim style={{ marginBottom: spacing.l }}>

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, View, Pressable, StyleSheet, TextInput, ActivityIndicator, Alert, Image } from 'react-native';
+import { ScrollView, View, Pressable, StyleSheet, TextInput, ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -73,7 +73,8 @@ export default function MoreTab() {
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: palette.bg }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 120, padding: spacing.l }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 120, padding: spacing.l }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.m, marginBottom: spacing.l }}>
           <Image source={SPARTAN_LOGO} style={{ width: 80, height: 56 }} resizeMode="contain" />
           <View style={{ flex: 1 }}>
@@ -143,6 +144,7 @@ export default function MoreTab() {
           <Small dim style={{ textAlign: 'center' }}>© Spartan Coaching · spartanhospicecoaching.com</Small>
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

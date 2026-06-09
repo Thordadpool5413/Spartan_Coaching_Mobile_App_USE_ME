@@ -220,6 +220,7 @@ export default function AdminScreen() {
 
       <ScrollView
         contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }}
+        showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
         {tab === 'overview' && overview ? <OverviewView overview={overview} /> : null}
