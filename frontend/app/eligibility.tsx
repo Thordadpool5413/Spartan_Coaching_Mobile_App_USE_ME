@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Markdown from 'react-native-markdown-display';
 import { palette, radius, spacing } from '../theme';
-import { Card, PrimaryButton, GhostButton, H1, H2, H3, Body, Small, SectionLabel } from '../components/UI';
+import { Card, PrimaryButton, GhostButton, H1, H2, H3, Body, Small, SectionLabel, PhiNotice } from '../components/UI';
 import { assessEligibility, EligibilityVerdict } from '../lib/api';
 import { markdownStyles } from '../components/markdownStyles';
 
@@ -212,9 +212,10 @@ export default function EligibilityScreen() {
 
         <SectionLabel>Quick Check · 60 seconds</SectionLabel>
         <H2 style={{ marginBottom: spacing.s }}>Hospice Eligibility</H2>
-        <Body dim style={{ marginBottom: spacing.l }}>
+        <Body dim style={{ marginBottom: spacing.s }}>
           A guided clinical snapshot that produces a shareable hospice-readiness summary aligned to Medicare LCDs. No PHI required.
         </Body>
+        <PhiNotice />
 
         {step === 0 && (
           <>

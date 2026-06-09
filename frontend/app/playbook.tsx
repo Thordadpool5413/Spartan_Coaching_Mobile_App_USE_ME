@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
 import { palette, radius, spacing } from '../theme';
-import { Card, PrimaryButton, GhostButton, H2, Body, Small, SectionLabel, Pill } from '../components/UI';
+import { Card, PrimaryButton, GhostButton, H2, Body, Small, SectionLabel, Pill, PhiNotice } from '../components/UI';
 import { getPlaybook } from '../lib/api';
 import { markdownStyles } from '../components/markdownStyles';
 
@@ -40,6 +40,7 @@ export default function PlaybookScreen() {
           Walk in prepared, not improvising. Build a full pre-visit playbook custom to your referral source and scenario.
         </Body>
 
+        <PhiNotice />
         <Small style={styles.lbl}>Scenario</Small>
         <TextInput
           testID="playbook-scenario"
