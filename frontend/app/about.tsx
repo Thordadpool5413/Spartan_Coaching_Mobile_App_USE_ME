@@ -19,7 +19,7 @@ const VALUES = [
 export default function AboutScreen() {
   return (
     <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 80 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={{ padding: spacing.l }}>
           <SectionLabel>About</SectionLabel>
           <H1>Why Spartan Coaching Exists</H1>

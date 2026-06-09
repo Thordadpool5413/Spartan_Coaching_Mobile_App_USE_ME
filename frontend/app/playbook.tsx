@@ -35,7 +35,7 @@ export default function PlaybookScreen() {
   return (
     <PaywallGate feature="Sales Playbook Generator">
     <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 100 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <SectionLabel>AI Tool</SectionLabel>
         <H2 style={{ marginBottom: spacing.s }}>Sales Playbook Generator</H2>
         <Body dim style={{ marginBottom: spacing.l }}>

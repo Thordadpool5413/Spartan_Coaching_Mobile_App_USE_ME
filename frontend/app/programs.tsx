@@ -76,7 +76,7 @@ export default function ProgramsScreen() {
   const router = useRouter();
   return (
     <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <SectionLabel>Training Programs</SectionLabel>
         <H1 style={{ marginBottom: spacing.s }}>Structured engagements that change behavior</H1>
         <Body dim style={{ marginBottom: spacing.l }}>

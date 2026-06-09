@@ -38,7 +38,7 @@ const SECTIONS = [
 export default function ManifestoScreen() {
   return (
     <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <SectionLabel>The Ethos</SectionLabel>
         <H1>The Spartan Ethos</H1>
         <Body dim style={{ marginTop: spacing.s, marginBottom: spacing.xl, fontSize: 17 }}>
