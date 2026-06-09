@@ -1,5 +1,5 @@
-import React, { useRef, useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Dimensions, Image } from 'react-native';
+import React, { useRef, useState, useEffect } from 'react';
+import { View, Text, ScrollView, Pressable, StyleSheet, Dimensions, Image, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -38,10 +38,29 @@ const SLIDES = [
   },
 ];
 
+const DOT_INACTIVE = 8;
+const DOT_ACTIVE = 28;
+
 export default function OnboardingScreen() {
   const router = useRouter();
   const scrollRef = useRef<ScrollView>(null);
   const [page, setPage] = useState(0);
+
+  // Tracks raw scroll X — drives dot animations
+  const scrollX = useRef(new Animated.Value(0)).current;
+
+  // Drives button label / icon crossfade when page flips
+  const btnFade = useRef(new Animated.Value(1)).current;
+  const prevPage = useRef(0);
+
+  useEffect(() => {
+    if (prevPage.current === page) return;
+    prevPage.current = page;
+    Animated.sequence([
+      Animated.timing(btnFade, { toValue: 0, duration: 110, useNativeDriver: true }),
+      Animated.timing(btnFade, { toValue: 1, duration: 180, useNativeDriver: true }),
+    ]).start();
+  }, [page, btnFade]);
 
   const goTo = (p: number) => {
     scrollRef.current?.scrollTo({ x: p * SW, animated: true });
@@ -61,6 +80,8 @@ export default function OnboardingScreen() {
     router.replace('/(tabs)');
   };
 
+  const isLast = page === SLIDES.length - 1;
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: palette.bg }}>
       <ScrollView
@@ -68,8 +89,16 @@ export default function OnboardingScreen() {
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        scrollEnabled={false}
         scrollEventThrottle={16}
+        decelerationRate="fast"
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+          { useNativeDriver: false }
+        )}
+        onMomentumScrollEnd={(e) => {
+          const newPage = Math.round(e.nativeEvent.contentOffset.x / SW);
+          setPage(newPage);
+        }}
       >
         {SLIDES.map((s, i) => (
           <LinearGradient key={i} colors={s.bg} style={[styles.slide, { width: SW }]}>
@@ -78,19 +107,36 @@ export default function OnboardingScreen() {
               style={[styles.slideImage, s.imageStyle]}
               resizeMode="contain"
             />
-            <Text style={styles.slideNum}>{i + 1} / {SLIDES.length}</Text>
             <Text style={styles.title}>{s.title}</Text>
             <Text style={styles.body}>{s.body}</Text>
           </LinearGradient>
         ))}
       </ScrollView>
 
+      {/* Animated progress dots */}
       <View style={styles.dots}>
-        {SLIDES.map((_, i) => (
-          <Pressable key={i} onPress={() => goTo(i)} hitSlop={8}>
-            <View style={[styles.dot, i === page && styles.dotActive]} />
-          </Pressable>
-        ))}
+        {SLIDES.map((_, i) => {
+          const dotWidth = scrollX.interpolate({
+            inputRange: [(i - 1) * SW, i * SW, (i + 1) * SW],
+            outputRange: [DOT_INACTIVE, DOT_ACTIVE, DOT_INACTIVE],
+            extrapolate: 'clamp',
+          });
+          const dotColor = scrollX.interpolate({
+            inputRange: [(i - 1) * SW, i * SW, (i + 1) * SW],
+            outputRange: [palette.bgElev3, palette.primary, palette.bgElev3],
+            extrapolate: 'clamp',
+          });
+          return (
+            <Pressable key={i} onPress={() => goTo(i)} hitSlop={10}>
+              <Animated.View
+                style={[
+                  styles.dot,
+                  { width: dotWidth, backgroundColor: dotColor },
+                ]}
+              />
+            </Pressable>
+          );
+        })}
       </View>
 
       <View style={styles.footer}>
@@ -104,18 +150,20 @@ export default function OnboardingScreen() {
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
           >
-            <Text style={styles.btnText}>
-              {page === SLIDES.length - 1 ? 'Get started' : 'Next'}
-            </Text>
-            <Ionicons
-              name={page === SLIDES.length - 1 ? 'checkmark' : 'arrow-forward'}
-              size={18}
-              color="#fff"
-            />
+            <Animated.View style={[styles.btnInner, { opacity: btnFade }]}>
+              <Text style={styles.btnText}>
+                {isLast ? 'Get started' : 'Next'}
+              </Text>
+              <Ionicons
+                name={isLast ? 'checkmark' : 'arrow-forward'}
+                size={18}
+                color="#fff"
+              />
+            </Animated.View>
           </LinearGradient>
         </Pressable>
 
-        {page < SLIDES.length - 1 && (
+        {!isLast && (
           <Pressable onPress={finish} hitSlop={12} style={{ alignItems: 'center' }}>
             <Text style={styles.skip}>Skip intro</Text>
           </Pressable>
@@ -136,13 +184,6 @@ const styles = StyleSheet.create({
   slideImage: {
     marginBottom: spacing.xxxl,
   },
-  slideNum: {
-    color: palette.textFaint,
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 1,
-    marginBottom: spacing.m,
-  },
   title: {
     color: palette.text,
     fontSize: 36,
@@ -161,18 +202,13 @@ const styles = StyleSheet.create({
   dots: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 10,
+    alignItems: 'center',
+    gap: 8,
     marginBottom: spacing.l,
+    marginTop: spacing.m,
   },
   dot: {
-    width: 8,
     height: 8,
-    borderRadius: 4,
-    backgroundColor: palette.bgElev3,
-  },
-  dotActive: {
-    backgroundColor: palette.primary,
-    width: 28,
     borderRadius: 4,
   },
   footer: {
@@ -182,11 +218,13 @@ const styles = StyleSheet.create({
   },
   btn: { borderRadius: radius.md, overflow: 'hidden' },
   btnGrad: {
+    paddingVertical: 17,
+  },
+  btnInner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    paddingVertical: 17,
   },
   btnText: {
     color: '#fff',
