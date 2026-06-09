@@ -174,14 +174,22 @@ async def startup():
     resend_status  = "configured" if RESEND_API_KEY else "DISABLED"
     ai_status      = "configured" if OPENAI_API_KEY else "DISABLED"
     stripe_status  = "configured" if STRIPE_API_KEY else "DISABLED"
-    admin_warn     = "" if (ADMIN_TOKEN and ADMIN_TOKEN != "spartan-admin") else " ⚠ DEFAULT token"
     logger.info(
-        "Spartan API up | DB=%s | AI=%s | Stripe=%s | Resend=%s | Admin=%s%s",
+        "Spartan API up | DB=%s | AI=%s | Stripe=%s | Resend=%s | Admin=%s",
         "ok" if pool else "UNAVAILABLE",
         ai_status, stripe_status, resend_status,
         ADMIN_TOKEN[:6] + "…" if ADMIN_TOKEN else "(unset)",
-        admin_warn,
     )
+    if not ADMIN_TOKEN or ADMIN_TOKEN == "spartan-admin":
+        logger.error(
+            "SECURITY: ADMIN_TOKEN is using the default value. "
+            "Set a strong random secret in the ADMIN_TOKEN environment variable before going to production."
+        )
+    if not STRIPE_WEBHOOK_SECRET:
+        logger.warning(
+            "STRIPE_WEBHOOK_SECRET is not set — Stripe webhook signature verification is DISABLED. "
+            "Set this secret in production to prevent webhook spoofing attacks."
+        )
 
 
 @app.on_event("shutdown")
@@ -205,16 +213,19 @@ def _row_to_dict(row) -> dict:
     return result
 
 
-# Rate limiter — 30 AI requests / 60 s per IP
+# Rate limiter — 30 AI requests / 60 s per device (or per IP when device unknown)
 _RATE_WINDOW  = 60
 _RATE_MAX     = 30
 _rate_buckets: dict[str, deque] = defaultdict(deque)
 
 
-def rate_limit_ai(request: Request) -> None:
+def rate_limit_ai(request: Request, device_id: Optional[str] = None) -> None:
     ip  = request.client.host if request.client else "unknown"
+    # Prefer device_id so every mobile device gets its own bucket rather than
+    # all devices on the same NAT/Wi-Fi being collapsed to a single IP bucket.
+    key = f"device:{device_id}" if device_id else f"ip:{ip}"
     now = _time.time()
-    bkt = _rate_buckets[ip]
+    bkt = _rate_buckets[key]
     while bkt and now - bkt[0] > _RATE_WINDOW:
         bkt.popleft()
     if len(bkt) >= _RATE_MAX:
@@ -278,6 +289,7 @@ class ChatHistoryItem(BaseModel):
 class ChatRequest(BaseModel):
     prompt: str = Field(..., min_length=1, max_length=4000)
     conversationHistory: List[ChatHistoryItem] = Field(default_factory=list)
+    deviceId: Optional[str] = Field(default=None, max_length=255)
 
 
 class ChatResponse(BaseModel):
@@ -367,7 +379,7 @@ async def root():
 # ---------- AI: Chat ----------
 @api.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(req: ChatRequest, request: Request):
-    rate_limit_ai(request)
+    rate_limit_ai(request, req.deviceId)
     history = [m.model_dump() for m in req.conversationHistory]
     try:
         text = await llm_complete(SPARTAN_SYSTEM_INSTRUCTION, req.prompt, model=LLM_MODEL, history=history)
@@ -383,8 +395,8 @@ async def chat_endpoint(req: ChatRequest, request: Request):
                     "INSERT INTO chat_logs (id, prompt, response) VALUES ($1, $2, $3)",
                     str(uuid.uuid4()), req.prompt[:500], text[:500],
                 )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("chat_logs insert failed (non-fatal): %s", exc)
     return ChatResponse(response=text)
 
 
@@ -752,8 +764,8 @@ async def eligibility_assess(req: EligibilityRequest, request: Request):
                     "INSERT INTO eligibility_checks (id, diagnosis, verdict, indicators_count) VALUES ($1, $2, $3, $4)",
                     str(uuid.uuid4()), req.diagnosis, verdict, len(req.indicators),
                 )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("eligibility_checks insert failed (non-fatal): %s", exc)
     return {"verdict": verdict, "summary": summary}
 
 

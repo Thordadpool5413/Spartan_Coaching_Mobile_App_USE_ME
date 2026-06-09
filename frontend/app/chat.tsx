@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TextInput, ScrollView, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Pressable } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getDeviceId } from '../lib/device';
 import { Ionicons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
 import { palette, radius, spacing } from '../theme';
@@ -13,10 +14,15 @@ export default function ChatScreen() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  const [deviceId, setDeviceId] = useState<string | undefined>(undefined);
   // Dynamic offset: safe-area top (status bar + notch) + standard iOS nav-bar height (44pt).
   // This keeps the input above the keyboard on SE, 14, 16 Pro Max, and all other models.
   const insets = useSafeAreaInsets();
   const keyboardOffset = insets.top + 44;
+
+  useEffect(() => {
+    getDeviceId().then(setDeviceId).catch(() => {});
+  }, []);
 
   const send = async () => {
     if (!input.trim() || loading) return;
@@ -27,7 +33,7 @@ export default function ChatScreen() {
     setLoading(true);
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     try {
-      const reply = await chatWithCoach(userMsg, messages);
+      const reply = await chatWithCoach(userMsg, messages, deviceId);
       setMessages([...newHistory, { role: 'model', content: reply }]);
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (e: any) {
