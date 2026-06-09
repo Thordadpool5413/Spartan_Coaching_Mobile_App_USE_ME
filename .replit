@@ -19,6 +19,8 @@ ADMIN_TOKEN = "5413"
 PORT = "8000"
 EXPO_PUBLIC_BACKEND_URL = "https://7054fac5-9531-47b8-90e3-fa8de0511f04-00-3icmtlgpf9s15.kirk.replit.dev"
 STRIPE_PRO_PRICE_ID = "price_1TgVsULsjQz1kEqVOArnb59R"
+STRIPE_TEAM_5_PRICE_ID = "price_1TgWLOLF4JQdUFsUXy3XB8mu"
+STRIPE_TEAM_10_PRICE_ID = "price_1TgWLPLF4JQdUFsUG1WkALt7"
 
 [workflows]
 runButton = "Project"
