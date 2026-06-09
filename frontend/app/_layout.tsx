@@ -23,12 +23,15 @@ function usePaymentDeepLink() {
       } catch {}
     };
 
-    // Cold-start only: when the app was killed and re-opened via a spartan:// deep link.
-    // Foreground redirects during active checkout are handled directly by
-    // WebBrowser.openAuthSessionAsync in services.tsx, so no addEventListener needed here.
+    // Runtime listener: app is open or in background and receives a spartan:// deep link.
+    // Note: during an active WebBrowser.openAuthSessionAsync session the URL is intercepted
+    // before it reaches this listener, so there is no double-navigation.
+    const sub = Linking.addEventListener('url', (e) => handleUrl(e.url));
+
+    // Cold-start: app was killed and re-opened via a spartan:// deep link.
     Linking.getInitialURL().then((url) => { if (url) handleUrl(url); });
 
-    return () => {};
+    return () => sub.remove();
   }, [router]);
 }
 
