@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { palette, radius, spacing, typography } from '../../theme';
 import { Card, PrimaryButton, GhostButton, H2, H3, Body, Small, SectionLabel } from '../../components/UI';
 import { StampSlam } from '../../components/StampSlam';
-import { getTodayDrill, getDrillStats, DrillToday, DrillStats } from '../../lib/api';
+import { getTodayDrill, getDrillStats, DrillToday, DrillStats, getHeroBadge } from '../../lib/api';
 import { getDeviceId } from '../../lib/device';
 
 const SPARTAN_LOGO = require('../../assets/images/spartan-logo.png');
@@ -25,12 +25,18 @@ export default function HomeScreen() {
   const router = useRouter();
   const [drill, setDrill] = useState<DrillToday | null>(null);
   const [stats, setStats] = useState<DrillStats | null>(null);
+  const [heroBadge, setHeroBadge] = useState('2026 Coaching Programs Open');
 
   useEffect(() => {
     (async () => {
       try {
-        const [d, deviceId] = await Promise.all([getTodayDrill(), getDeviceId()]);
+        const [d, deviceId, badge] = await Promise.all([
+          getTodayDrill(),
+          getDeviceId(),
+          getHeroBadge(),
+        ]);
         setDrill(d);
+        setHeroBadge(badge.text);
         const s = await getDrillStats(deviceId);
         setStats(s);
       } catch (e) {
@@ -51,7 +57,7 @@ export default function HomeScreen() {
         >
           <View style={styles.heroBadge}>
             <View style={styles.dotPulse} />
-            <Text style={styles.badgeText}>2026 Coaching Programs Open</Text>
+            <Text style={styles.badgeText}>{heroBadge}</Text>
             <Ionicons name="arrow-forward" size={12} color="#86efac" />
           </View>
           <StampSlam source={SPARTAN_LOGO} width={220} height={132} onceKey="home_hero" style={{ alignSelf: 'flex-start', marginBottom: spacing.m, marginLeft: -10 }} />
@@ -350,15 +356,6 @@ const styles = StyleSheet.create({
   eligStat: { flex: 1, alignItems: 'center' },
   eligStatN: { color: palette.primary, fontSize: 22, fontWeight: '900', letterSpacing: -0.5 },
   eligStatL: { color: palette.textDim, fontSize: 11, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
-  eligCta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  eligCtaText: {
-    color: palette.primary,
-    fontSize: 15,
-    fontWeight: '800',
-    letterSpacing: 0.2,
-  },
+  eligCta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  eligCtaText: { color: palette.primary, fontSize: 15, fontWeight: '800', letterSpacing: 0.2 },
 });

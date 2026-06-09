@@ -343,3 +343,16 @@ export async function getResources() {
   const { data } = await api.get('/content/resources');
   return data as { resources: Resource[] };
 }
+
+// ----- App settings -----
+export async function getHeroBadge(): Promise<{ text: string }> {
+  const { data } = await api.get('/settings/hero');
+  return data as { text: string };
+}
+
+export async function adminUpdateHeroBadge(token: string, text: string) {
+  const { data } = await api.put('/admin/settings/hero', { text }, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return data as { status: string; text: string };
+}

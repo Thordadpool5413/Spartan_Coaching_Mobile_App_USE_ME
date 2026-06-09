@@ -106,7 +106,7 @@ export default function ProgramsScreen() {
             </View>
             <PrimaryButton
               testID={`program-quote-${p.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
-              label="Discuss this program"
+              label="Request a Quote"
               onPress={() =>
                 router.push({
                   pathname: '/(tabs)/more',
