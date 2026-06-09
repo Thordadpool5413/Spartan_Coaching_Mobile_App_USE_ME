@@ -68,6 +68,27 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
+// Redirect to paywall on subscription-required 402 from any AI endpoint.
+// Lazy require avoids circular-dependency / init-order problems with expo-router.
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 402) {
+      const data = error.response?.data;
+      if (data?.error === 'subscription_required') {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const { router } = require('expo-router') as typeof import('expo-router');
+          router.push('/paywall' as any);
+        } catch {
+          // Silently ignore if router is not yet mounted
+        }
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export type ChatHistoryItem = { role: 'user' | 'model'; content: string };
 
 export async function askSpartan(question: string) {
