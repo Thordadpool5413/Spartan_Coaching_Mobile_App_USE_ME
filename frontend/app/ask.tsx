@@ -3,6 +3,7 @@ import { ScrollView, View, TextInput, ActivityIndicator, StyleSheet, Pressable }
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
+import * as Clipboard from 'expo-clipboard';
 import { palette, radius, spacing } from '../theme';
 import { Card, PrimaryButton, GhostButton, H2, Body, Small, SectionLabel, PhiNotice } from '../components/UI';
 import { askSpartan } from '../lib/api';
@@ -20,12 +21,14 @@ export default function AskScreen() {
   const [answer, setAnswer] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const submit = async (q: string) => {
     if (!q.trim() || loading) return;
     setLoading(true);
     setError(null);
     setAnswer('');
+    setCopied(false);
     try {
       const a = await askSpartan(q);
       setAnswer(a);
@@ -34,6 +37,13 @@ export default function AskScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const copyAnswer = async () => {
+    if (!answer) return;
+    await Clipboard.setStringAsync(answer);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
   };
 
   return (
@@ -99,8 +109,20 @@ export default function AskScreen() {
         {answer && !loading && (
           <Card testID="ask-answer">
             <Markdown style={markdownStyles}>{answer}</Markdown>
-            <View style={{ marginTop: spacing.l, paddingTop: spacing.m, borderTopWidth: 1, borderColor: palette.divider }}>
-              <GhostButton label="Ask another question" onPress={() => { setAnswer(''); setQuery(''); }} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.s, marginTop: spacing.l, paddingTop: spacing.m, borderTopWidth: 1, borderColor: palette.divider }}>
+              <View style={{ flex: 1 }}>
+                <GhostButton label="Ask another question" onPress={() => { setAnswer(''); setQuery(''); setCopied(false); }} />
+              </View>
+              <Pressable
+                testID="ask-copy"
+                onPress={copyAnswer}
+                style={({ pressed }) => [styles.copyBtn, { opacity: pressed ? 0.7 : 1 }]}
+              >
+                <Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={16} color={copied ? '#22c55e' : palette.textMuted} />
+                <Small style={{ color: copied ? '#22c55e' : palette.textMuted, fontWeight: '700' }}>
+                  {copied ? 'Copied' : 'Copy'}
+                </Small>
+              </Pressable>
             </View>
           </Card>
         )}
@@ -134,6 +156,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: radius.pill,
+    backgroundColor: palette.bgElev2,
+    borderWidth: 1,
+    borderColor: palette.cardBorder,
+  },
+  copyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: radius.md,
     backgroundColor: palette.bgElev2,
     borderWidth: 1,
     borderColor: palette.cardBorder,

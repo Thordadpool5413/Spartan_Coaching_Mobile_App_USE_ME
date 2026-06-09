@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, View, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { ScrollView, View, Pressable, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,17 +17,29 @@ export default function LearnTab() {
   const router = useRouter();
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = async () => {
+    const d = await getArticles();
+    setArticles((d.articles || []).slice(0, 4));
+  };
 
   useEffect(() => {
-    getArticles()
-      .then((d) => setArticles((d.articles || []).slice(0, 4)))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    load().catch(() => {}).finally(() => setLoading(false));
   }, []);
+
+  const refresh = async () => {
+    setRefreshing(true);
+    try { await load(); } catch {}
+    setRefreshing(false);
+  };
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: palette.bg }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 100, padding: spacing.l }}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 100, padding: spacing.l }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={palette.primary} />}
+      >
         <SectionLabel>Learn</SectionLabel>
         <H1 style={{ marginBottom: spacing.s }}>References & practice</H1>
         <Body dim style={{ marginBottom: spacing.xl }}>

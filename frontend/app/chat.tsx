@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { View, Text, TextInput, ScrollView, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Pressable } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
 import { palette, radius, spacing } from '../theme';
@@ -13,8 +14,6 @@ export default function ChatScreen() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
-  // Dynamic offset: safe-area top (status bar + notch) + standard iOS nav-bar height (44pt).
-  // This keeps the input above the keyboard on SE, 14, 16 Pro Max, and all other models.
   const insets = useSafeAreaInsets();
   const keyboardOffset = insets.top + 44;
 
@@ -37,73 +36,94 @@ export default function ChatScreen() {
     }
   };
 
+  const newConversation = () => {
+    setMessages([]);
+    setInput('');
+  };
+
   return (
-    <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={{ flex: 1 }}
-        keyboardVerticalOffset={keyboardOffset}
-      >
-        <ScrollView ref={scrollRef} contentContainerStyle={{ padding: spacing.l, paddingBottom: 20, gap: spacing.m }}>
-          {messages.length === 0 && (
-            <View style={{ alignItems: 'center', paddingVertical: spacing.xxxl }}>
-              <View style={styles.heroIcon}>
-                <Ionicons name="chatbubbles" size={28} color={palette.primary} />
-              </View>
-              <Text style={styles.heroTitle}>Hospice Sales Coach</Text>
-              <Body dim style={{ textAlign: 'center', marginTop: 8, paddingHorizontal: 24 }}>
-                Ask anything: objections, eligibility, territory strategy, difficult conversations. Multi-turn, contextual coaching.
-              </Body>
-            </View>
-          )}
-
-          {messages.map((m, i) => (
-            <View
-              key={`${i}-${m.role}`}
-              testID={`msg-${i}`}
-              style={[styles.bubble, m.role === 'user' ? styles.bubbleUser : styles.bubbleModel]}
+    <>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <Pressable
+              onPress={newConversation}
+              disabled={messages.length === 0}
+              style={{ opacity: messages.length === 0 ? 0.3 : 1, marginRight: 4 }}
+              hitSlop={12}
             >
-              {m.role === 'user' ? (
-                <Text style={{ color: '#fff', fontSize: 15, lineHeight: 22 }}>{m.content}</Text>
-              ) : (
-                <Markdown style={markdownStyles}>{m.content}</Markdown>
-              )}
-            </View>
-          ))}
+              <Ionicons name="create-outline" size={22} color={palette.text} />
+            </Pressable>
+          ),
+        }}
+      />
+      <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+          keyboardVerticalOffset={keyboardOffset}
+        >
+          <ScrollView ref={scrollRef} contentContainerStyle={{ padding: spacing.l, paddingBottom: 20, gap: spacing.m }}>
+            {messages.length === 0 && (
+              <View style={{ alignItems: 'center', paddingVertical: spacing.xxxl }}>
+                <View style={styles.heroIcon}>
+                  <Ionicons name="chatbubbles" size={28} color={palette.primary} />
+                </View>
+                <Text style={styles.heroTitle}>Hospice Sales Coach</Text>
+                <Body dim style={{ textAlign: 'center', marginTop: 8, paddingHorizontal: 24 }}>
+                  Ask anything: objections, eligibility, territory strategy, difficult conversations. Multi-turn, contextual coaching.
+                </Body>
+              </View>
+            )}
 
-          {loading && (
-            <View style={[styles.bubble, styles.bubbleModel, { flexDirection: 'row', alignItems: 'center', gap: 10 }]}>
-              <ActivityIndicator color={palette.primary} size="small" />
-              <Small dim>Coach is thinking…</Small>
-            </View>
-          )}
-        </ScrollView>
+            {messages.map((m, i) => (
+              <View
+                key={`${i}-${m.role}`}
+                testID={`msg-${i}`}
+                style={[styles.bubble, m.role === 'user' ? styles.bubbleUser : styles.bubbleModel]}
+              >
+                {m.role === 'user' ? (
+                  <Text style={{ color: '#fff', fontSize: 15, lineHeight: 22 }}>{m.content}</Text>
+                ) : (
+                  <Markdown style={markdownStyles}>{m.content}</Markdown>
+                )}
+              </View>
+            ))}
 
-        <PhiNotice style={styles.phiRow} />
-        <View style={styles.composer}>
-          <TextInput
-            testID="chat-input"
-            value={input}
-            onChangeText={setInput}
-            placeholder="Ask the coach…"
-            placeholderTextColor={palette.textFaint}
-            style={styles.input}
-            multiline
-          />
-          <Pressable
-            testID="chat-send"
-            onPress={send}
-            disabled={!input.trim() || loading}
-            style={({ pressed }) => [
-              styles.sendBtn,
-              { opacity: !input.trim() || loading ? 0.4 : pressed ? 0.7 : 1 },
-            ]}
-          >
-            <Ionicons name="arrow-up" size={20} color="#fff" />
-          </Pressable>
-        </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+            {loading && (
+              <View style={[styles.bubble, styles.bubbleModel, { flexDirection: 'row', alignItems: 'center', gap: 10 }]}>
+                <ActivityIndicator color={palette.primary} size="small" />
+                <Small dim>Coach is thinking…</Small>
+              </View>
+            )}
+          </ScrollView>
+
+          <PhiNotice style={styles.phiRow} />
+          <View style={styles.composer}>
+            <TextInput
+              testID="chat-input"
+              value={input}
+              onChangeText={setInput}
+              placeholder="Ask the coach…"
+              placeholderTextColor={palette.textFaint}
+              style={styles.input}
+              multiline
+            />
+            <Pressable
+              testID="chat-send"
+              onPress={send}
+              disabled={!input.trim() || loading}
+              style={({ pressed }) => [
+                styles.sendBtn,
+                { opacity: !input.trim() || loading ? 0.4 : pressed ? 0.7 : 1 },
+              ]}
+            >
+              <Ionicons name="arrow-up" size={20} color="#fff" />
+            </Pressable>
+          </View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </>
   );
 }
 
