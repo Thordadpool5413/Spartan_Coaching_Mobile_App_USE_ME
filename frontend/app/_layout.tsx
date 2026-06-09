@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { View, Linking, Platform } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import { palette } from '../theme';
 
 function usePaymentDeepLink() {
@@ -39,8 +40,26 @@ function usePaymentDeepLink() {
   }, [router]);
 }
 
+function useNotificationTap() {
+  const router = useRouter();
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    // When the user taps a push notification, route them to the relevant screen.
+    // The daily drill notification sets data.url = '/drills' in notifications.ts.
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as Record<string, unknown>;
+      const url = typeof data?.url === 'string' ? data.url : null;
+      if (url === '/drills') {
+        router.push('/drills');
+      }
+    });
+    return () => sub.remove();
+  }, [router]);
+}
+
 export default function RootLayout() {
   usePaymentDeepLink();
+  useNotificationTap();
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: palette.bg }}>
