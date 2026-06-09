@@ -23,13 +23,12 @@ function usePaymentDeepLink() {
       } catch {}
     };
 
-    // Handle URLs when app is already open (background → foreground)
-    const sub = Linking.addEventListener('url', (e) => handleUrl(e.url));
-
-    // Handle cold-start URL (app was killed, opened via deep link)
+    // Cold-start only: when the app was killed and re-opened via a spartan:// deep link.
+    // Foreground redirects during active checkout are handled directly by
+    // WebBrowser.openAuthSessionAsync in services.tsx, so no addEventListener needed here.
     Linking.getInitialURL().then((url) => { if (url) handleUrl(url); });
 
-    return () => sub.remove();
+    return () => {};
   }, [router]);
 }
 
