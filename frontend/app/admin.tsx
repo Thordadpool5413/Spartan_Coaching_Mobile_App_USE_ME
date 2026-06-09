@@ -7,7 +7,7 @@ import { palette, radius, spacing } from '../theme';
 import { Card, PrimaryButton, GhostButton, H2, H3, Body, Small, SectionLabel } from '../components/UI';
 import {
   adminOverview, adminContacts, adminEligibility, AdminOverview,
-  adminCreateArticle, adminUpdateArticle, adminDeleteArticle, getArticles,
+  adminCreateArticle, adminUpdateArticle, adminDeleteArticle, adminReorderArticles, getArticles,
   Article, ArticlePayload,
 } from '../lib/api';
 
@@ -260,6 +260,12 @@ function ArticlesListView({
   onDeleted: () => Promise<void>;
 }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [localArticles, setLocalArticles] = useState<Article[]>(articles);
+  const [reordering, setReordering] = useState(false);
+
+  useEffect(() => {
+    setLocalArticles(articles);
+  }, [articles]);
 
   const handleDelete = (a: Article) => {
     Alert.alert(
@@ -287,19 +293,57 @@ function ArticlesListView({
     );
   };
 
+  const moveArticle = async (index: number, direction: 'up' | 'down') => {
+    const swapIndex = direction === 'up' ? index - 1 : index + 1;
+    if (swapIndex < 0 || swapIndex >= localArticles.length) return;
+    const updated = [...localArticles];
+    [updated[index], updated[swapIndex]] = [updated[swapIndex], updated[index]];
+    const withOrder = updated.map((a, i) => ({ ...a, sortOrder: i }));
+    setLocalArticles(withOrder);
+    setReordering(true);
+    try {
+      await adminReorderArticles(token, withOrder.map((a) => ({ id: a.id, sortOrder: a.sortOrder ?? 0 })));
+    } catch {
+      setLocalArticles(localArticles);
+    } finally {
+      setReordering(false);
+    }
+  };
+
   return (
     <>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.l }}>
         <H2>Articles</H2>
-        <Pressable onPress={onNew} style={styles.newBtn} hitSlop={8}>
-          <Ionicons name="add" size={16} color="#fff" />
-          <Small style={{ color: '#fff', fontWeight: '800' }}>New</Small>
-        </Pressable>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.s }}>
+          {reordering && <ActivityIndicator size="small" color={palette.primary} />}
+          <Pressable onPress={onNew} style={styles.newBtn} hitSlop={8}>
+            <Ionicons name="add" size={16} color="#fff" />
+            <Small style={{ color: '#fff', fontWeight: '800' }}>New</Small>
+          </Pressable>
+        </View>
       </View>
-      {articles.length === 0 && <Body dim>No articles yet.</Body>}
-      {articles.map((a) => (
+      {localArticles.length === 0 && <Body dim>No articles yet.</Body>}
+      {localArticles.map((a, index) => (
         <Card key={a.id} style={{ marginBottom: spacing.m }}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ marginRight: spacing.s, gap: 2 }}>
+              <Pressable
+                onPress={() => moveArticle(index, 'up')}
+                disabled={index === 0 || reordering}
+                hitSlop={6}
+                style={{ opacity: index === 0 ? 0.2 : 1 }}
+              >
+                <Ionicons name="chevron-up" size={18} color={palette.textMuted} />
+              </Pressable>
+              <Pressable
+                onPress={() => moveArticle(index, 'down')}
+                disabled={index === localArticles.length - 1 || reordering}
+                hitSlop={6}
+                style={{ opacity: index === localArticles.length - 1 ? 0.2 : 1 }}
+              >
+                <Ionicons name="chevron-down" size={18} color={palette.textMuted} />
+              </Pressable>
+            </View>
             <View style={{ flex: 1, marginRight: spacing.m }}>
               <H3 numberOfLines={2} style={{ marginBottom: 6 }}>{a.title}</H3>
               <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
