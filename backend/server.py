@@ -437,6 +437,7 @@ _CREATE_TABLES = [
         linkedin_url TEXT,
         publish_date DATE NOT NULL,
         featured     BOOLEAN      DEFAULT FALSE,
+        sort_order   INTEGER      DEFAULT 0,
         created_at   TIMESTAMPTZ  DEFAULT NOW()
     )
     """,
@@ -916,6 +917,10 @@ async def startup():
         async with pool.acquire() as conn:
             for stmt in _CREATE_TABLES:
                 await conn.execute(stmt)
+            # Migration: add sort_order column to existing databases
+            await conn.execute(
+                "ALTER TABLE articles ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0"
+            )
             for row in _SEED_ARTICLES:
                 await conn.execute(
                     """INSERT INTO articles (id, title, description, linkedin_url, publish_date, featured)
@@ -927,6 +932,20 @@ async def startup():
                 await conn.execute(
                     "UPDATE articles SET body = $1 WHERE id = $2 AND body IS NULL",
                     body, article_id,
+                )
+            # Initialize sort_order for articles that haven't been ordered yet
+            max_order = await conn.fetchval("SELECT MAX(sort_order) FROM articles")
+            if max_order is None or max_order == 0:
+                await conn.execute(
+                    """
+                    WITH ranked AS (
+                        SELECT id,
+                               (ROW_NUMBER() OVER (ORDER BY publish_date DESC, id) - 1) AS rn
+                        FROM articles
+                    )
+                    UPDATE articles SET sort_order = ranked.rn
+                    FROM ranked WHERE articles.id = ranked.id
+                    """
                 )
         logger.info("PostgreSQL pool ready")
     except Exception as exc:
@@ -1624,13 +1643,38 @@ async def admin_create_article(payload: ArticlePayload, _: bool = Depends(requir
         existing = await conn.fetchval("SELECT id FROM articles WHERE id = $1", article_id)
         if existing:
             raise HTTPException(status_code=409, detail=f"Article id '{article_id}' already exists — use PUT to update")
+        max_order = await conn.fetchval("SELECT COALESCE(MAX(sort_order), -1) FROM articles")
+        new_order = max_order + 1
         await conn.execute(
-            """INSERT INTO articles (id, title, description, body, linkedin_url, publish_date, featured)
-               VALUES ($1, $2, $3, $4, $5, $6, $7)""",
+            """INSERT INTO articles (id, title, description, body, linkedin_url, publish_date, featured, sort_order)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)""",
             article_id, payload.title, payload.description, payload.body,
             payload.linkedinUrl, date.fromisoformat(payload.publishDate), payload.featured,
+            new_order,
         )
     return {"id": article_id, "status": "created"}
+
+
+class ArticleOrderItem(BaseModel):
+    id: str
+    sortOrder: int
+
+
+class ArticleReorderPayload(BaseModel):
+    order: List[ArticleOrderItem]
+
+
+@api.patch("/admin/articles/reorder")
+async def admin_reorder_articles(payload: ArticleReorderPayload, _: bool = Depends(require_admin)):
+    if not pool:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    async with pool.acquire() as conn:
+        for item in payload.order:
+            await conn.execute(
+                "UPDATE articles SET sort_order = $1 WHERE id = $2",
+                item.sortOrder, item.id,
+            )
+    return {"status": "reordered"}
 
 
 @api.put("/admin/articles/{article_id}")
@@ -1884,6 +1928,7 @@ def _article_row_to_dict(r) -> dict:
         "linkedinUrl": r["linkedin_url"],
         "publishDate": str(r["publish_date"]),
         "featured": r["featured"],
+        "sortOrder": r["sort_order"],
     }
 
 
@@ -1893,8 +1938,8 @@ async def content_articles():
         return {"articles": REPO_ARTICLES}
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT id, title, description, body, linkedin_url, publish_date, featured "
-            "FROM articles ORDER BY publish_date DESC"
+            "SELECT id, title, description, body, linkedin_url, publish_date, featured, sort_order "
+            "FROM articles ORDER BY sort_order ASC, publish_date DESC"
         )
     return {"articles": [_article_row_to_dict(r) for r in rows]}
 
