@@ -304,11 +304,16 @@ export default function ServicesScreen() {
         const result = await WebBrowser.openAuthSessionAsync(url, 'spartan://payment-success');
         if (result.type === 'success' && result.url) {
           // Parse session_id from the redirect URL spartan://payment-success?session_id=...
-          const parsed = new URL(result.url);
-          const sid = parsed.searchParams.get('session_id') || session_id;
-          router.push({ pathname: '/payment-success', params: { session_id: sid } } as any);
-        } else if (result.type === 'cancel' || result.type === 'dismiss') {
-          // User closed the browser without paying — do nothing, stay on current screen
+          try {
+            const parsed = new URL(result.url);
+            const sid = parsed.searchParams.get('session_id') || session_id;
+            router.push({ pathname: '/payment-success', params: { session_id: sid } } as any);
+          } catch {
+            router.push({ pathname: '/payment-success', params: { session_id } } as any);
+          }
+        } else {
+          // User cancelled or dismissed — reopen the booking modal so they can try again
+          setBookOpen(true);
         }
       }
     } catch (e: any) {
