@@ -1,20 +1,33 @@
-import React, { useEffect, useState } from 'react';
-import { ScrollView, View, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { ScrollView, View, Pressable, ActivityIndicator, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import Markdown from 'react-native-markdown-display';
 import { Ionicons } from '@expo/vector-icons';
 import { palette, radius, spacing } from '../theme';
 import { H1, Body, Small, SectionLabel } from '../components/UI';
-import { markdownStyles } from '../components/markdownStyles';
+import { getMarkdownStyles, TextSizeKey } from '../components/markdownStyles';
 import { getArticle, Article } from '../lib/api';
+
+const TEXT_SIZE_KEY = 'article_text_size';
+const SIZE_CYCLE: TextSizeKey[] = ['small', 'medium', 'large'];
 
 export default function ArticleDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [article, setArticle] = useState<Article | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [textSize, setTextSize] = useState<TextSizeKey>('medium');
+
+  useEffect(() => {
+    AsyncStorage.getItem(TEXT_SIZE_KEY).then((saved) => {
+      if (saved && SIZE_CYCLE.includes(saved as TextSizeKey)) {
+        setTextSize(saved as TextSizeKey);
+      }
+    });
+  }, []);
 
   useEffect(() => {
     if (id) {
@@ -24,6 +37,14 @@ export default function ArticleDetailScreen() {
     }
   }, [id]);
 
+  const cycleTextSize = useCallback(() => {
+    setTextSize((current) => {
+      const next = SIZE_CYCLE[(SIZE_CYCLE.indexOf(current) + 1) % SIZE_CYCLE.length];
+      AsyncStorage.setItem(TEXT_SIZE_KEY, next);
+      return next;
+    });
+  }, []);
+
   const formattedDate = article?.publishDate
     ? new Date(article.publishDate + 'T12:00:00').toLocaleDateString('en-US', {
         year: 'numeric',
@@ -32,12 +53,22 @@ export default function ArticleDetailScreen() {
       })
     : '';
 
+  const mdStyles = getMarkdownStyles(textSize);
+
   return (
     <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
-      <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
-        <Ionicons name="arrow-back" size={22} color={palette.text} />
-        <Small style={{ color: palette.text, marginLeft: 6 }}>Articles</Small>
-      </Pressable>
+      <View style={styles.topBar}>
+        <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
+          <Ionicons name="arrow-back" size={22} color={palette.text} />
+          <Small style={{ color: palette.text, marginLeft: 6 }}>Articles</Small>
+        </Pressable>
+
+        <Pressable onPress={cycleTextSize} style={styles.textSizeBtn} hitSlop={12} accessibilityLabel="Adjust text size">
+          <Text style={[styles.aaLabel, textSize === 'large' && styles.aaLarge, textSize === 'small' && styles.aaSmall]}>
+            Aa
+          </Text>
+        </Pressable>
+      </View>
 
       <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }}>
         {!article && !err && <ActivityIndicator color={palette.primary} style={{ marginTop: spacing.xl }} />}
@@ -58,7 +89,7 @@ export default function ArticleDetailScreen() {
             <Small style={{ color: palette.textFaint, marginBottom: spacing.l }}>{formattedDate}</Small>
 
             {article.body ? (
-              <Markdown style={markdownStyles}>{article.body}</Markdown>
+              <Markdown style={mdStyles}>{article.body}</Markdown>
             ) : (
               <Body dim style={{ fontStyle: 'italic', marginTop: spacing.m }}>
                 Full article coming soon.
@@ -83,11 +114,33 @@ export default function ArticleDetailScreen() {
 }
 
 const styles = StyleSheet.create({
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingRight: spacing.l,
+  },
   backBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.l,
     paddingVertical: spacing.m,
+  },
+  textSizeBtn: {
+    paddingHorizontal: spacing.s,
+    paddingVertical: spacing.xs,
+  },
+  aaLabel: {
+    color: palette.text,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  aaSmall: {
+    color: palette.textFaint,
+    fontSize: 14,
+  },
+  aaLarge: {
+    fontSize: 19,
   },
   badge: {
     alignSelf: 'flex-start',

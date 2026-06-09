@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, View, Text, TextInput, Pressable, Switch, StyleSheet, ActivityIndicator } from 'react-native';
+import { ScrollView, View, Text, TextInput, Pressable, Switch, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,7 +7,7 @@ import { palette, radius, spacing } from '../theme';
 import { Card, PrimaryButton, GhostButton, H2, H3, Body, Small, SectionLabel } from '../components/UI';
 import {
   adminOverview, adminContacts, adminEligibility, AdminOverview,
-  adminCreateArticle, adminUpdateArticle, getArticles,
+  adminCreateArticle, adminUpdateArticle, adminDeleteArticle, adminReorderArticles, getArticles,
   Article, ArticlePayload,
 } from '../lib/api';
 
@@ -222,8 +222,10 @@ export default function AdminScreen() {
           articleView === 'list' ? (
             <ArticlesListView
               articles={articles}
+              token={token}
               onNew={() => { setEditingArticle(null); setArticleView('form'); }}
               onEdit={(a) => { setEditingArticle(a); setArticleView('form'); }}
+              onDeleted={loadArticles}
             />
           ) : (
             <ArticleFormView
@@ -246,26 +248,102 @@ export default function AdminScreen() {
 
 function ArticlesListView({
   articles,
+  token,
   onNew,
   onEdit,
+  onDeleted,
 }: {
   articles: Article[];
+  token: string;
   onNew: () => void;
   onEdit: (a: Article) => void;
+  onDeleted: () => Promise<void>;
 }) {
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [localArticles, setLocalArticles] = useState<Article[]>(articles);
+  const [reordering, setReordering] = useState(false);
+
+  useEffect(() => {
+    setLocalArticles(articles);
+  }, [articles]);
+
+  const handleDelete = (a: Article) => {
+    Alert.alert(
+      'Delete Article',
+      `Are you sure you want to delete "${a.title}"? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setDeletingId(a.id);
+            try {
+              await adminDeleteArticle(token, a.id);
+              await onDeleted();
+            } catch (e: any) {
+              const detail = e?.response?.data?.detail;
+              Alert.alert('Error', detail || 'Failed to delete article. Please try again.');
+            } finally {
+              setDeletingId(null);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const moveArticle = async (index: number, direction: 'up' | 'down') => {
+    const swapIndex = direction === 'up' ? index - 1 : index + 1;
+    if (swapIndex < 0 || swapIndex >= localArticles.length) return;
+    const updated = [...localArticles];
+    [updated[index], updated[swapIndex]] = [updated[swapIndex], updated[index]];
+    const withOrder = updated.map((a, i) => ({ ...a, sortOrder: i }));
+    setLocalArticles(withOrder);
+    setReordering(true);
+    try {
+      await adminReorderArticles(token, withOrder.map((a) => ({ id: a.id, sortOrder: a.sortOrder ?? 0 })));
+    } catch {
+      setLocalArticles(localArticles);
+    } finally {
+      setReordering(false);
+    }
+  };
+
   return (
     <>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.l }}>
         <H2>Articles</H2>
-        <Pressable onPress={onNew} style={styles.newBtn} hitSlop={8}>
-          <Ionicons name="add" size={16} color="#fff" />
-          <Small style={{ color: '#fff', fontWeight: '800' }}>New</Small>
-        </Pressable>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.s }}>
+          {reordering && <ActivityIndicator size="small" color={palette.primary} />}
+          <Pressable onPress={onNew} style={styles.newBtn} hitSlop={8}>
+            <Ionicons name="add" size={16} color="#fff" />
+            <Small style={{ color: '#fff', fontWeight: '800' }}>New</Small>
+          </Pressable>
+        </View>
       </View>
-      {articles.length === 0 && <Body dim>No articles yet.</Body>}
-      {articles.map((a) => (
+      {localArticles.length === 0 && <Body dim>No articles yet.</Body>}
+      {localArticles.map((a, index) => (
         <Card key={a.id} style={{ marginBottom: spacing.m }}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ marginRight: spacing.s, gap: 2 }}>
+              <Pressable
+                onPress={() => moveArticle(index, 'up')}
+                disabled={index === 0 || reordering}
+                hitSlop={6}
+                style={{ opacity: index === 0 ? 0.2 : 1 }}
+              >
+                <Ionicons name="chevron-up" size={18} color={palette.textMuted} />
+              </Pressable>
+              <Pressable
+                onPress={() => moveArticle(index, 'down')}
+                disabled={index === localArticles.length - 1 || reordering}
+                hitSlop={6}
+                style={{ opacity: index === localArticles.length - 1 ? 0.2 : 1 }}
+              >
+                <Ionicons name="chevron-down" size={18} color={palette.textMuted} />
+              </Pressable>
+            </View>
             <View style={{ flex: 1, marginRight: spacing.m }}>
               <H3 numberOfLines={2} style={{ marginBottom: 6 }}>{a.title}</H3>
               <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
@@ -283,6 +361,17 @@ function ArticlesListView({
             </View>
             <Pressable onPress={() => onEdit(a)} style={styles.editBtn} hitSlop={8}>
               <Ionicons name="pencil-outline" size={18} color={palette.primary} />
+            </Pressable>
+            <Pressable
+              onPress={() => handleDelete(a)}
+              disabled={deletingId === a.id}
+              style={[styles.editBtn, { marginLeft: spacing.s }]}
+              hitSlop={8}
+            >
+              {deletingId === a.id
+                ? <ActivityIndicator size="small" color={palette.primary} />
+                : <Ionicons name="trash-outline" size={18} color="#ef4444" />
+              }
             </Pressable>
           </View>
         </Card>

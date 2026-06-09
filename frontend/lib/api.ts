@@ -224,6 +224,16 @@ export async function adminUpdateArticle(token: string, id: string, payload: Art
   return data as { id: string; status: string };
 }
 
+export async function adminDeleteArticle(token: string, id: string) {
+  const { data } = await api.delete(`/admin/articles/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+  return data as { id: string; status: string };
+}
+
+export async function adminReorderArticles(token: string, order: { id: string; sortOrder: number }[]) {
+  const { data } = await api.patch('/admin/articles/reorder', { order }, { headers: { Authorization: `Bearer ${token}` } });
+  return data as { status: string };
+}
+
 export type MethodContent = {
   pillars: { id: string; title: string; description: string }[];
   subjects: {
@@ -297,6 +307,7 @@ export type Article = {
   linkedinUrl?: string;
   publishDate: string;
   featured: boolean;
+  sortOrder?: number;
 };
 export type Podcast = {
   id: string;
