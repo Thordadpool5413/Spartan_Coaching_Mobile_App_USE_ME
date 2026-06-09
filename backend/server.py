@@ -11,7 +11,7 @@ import uuid
 import logging
 import asyncio
 import re as _re
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, date, timezone, timedelta
 from typing import Optional, List, Literal
 
 from dotenv import load_dotenv
@@ -428,6 +428,29 @@ _CREATE_TABLES = [
         updated_at     TIMESTAMPTZ  DEFAULT NOW()
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS articles (
+        id           TEXT PRIMARY KEY,
+        title        TEXT NOT NULL,
+        description  TEXT NOT NULL,
+        body         TEXT,
+        linkedin_url TEXT,
+        publish_date DATE NOT NULL,
+        featured     BOOLEAN      DEFAULT FALSE,
+        created_at   TIMESTAMPTZ  DEFAULT NOW()
+    )
+    """,
+]
+
+_SEED_ARTICLES = [
+    ("a-real-reason", "The Real Reason Your Hospice Census Is Stuck", "Most hospice organizations blame their census plateau on market conditions or competition. The truth is almost always internal. This article walks through the three most common internal barriers to census growth and what leadership can do about each one.", "https://www.linkedin.com/pulse/real-reason-your-hospice-census-stuck-nicholas-lynch", "2025-11-12", True),
+    ("a-territory-planning", "Territory Planning Is Not Optional", "The reps who consistently hit their numbers all share one thing in common: they plan their territory with precision. This article covers the basics of territory planning that most hospice organizations skip entirely, from account tiering to weekly route optimization.", "https://www.linkedin.com/pulse/territory-planning-not-optional-nicholas-lynch", "2025-10-22", True),
+    ("a-stop-cold-call", "Stop Calling It a Cold Call", "The phrase cold call creates the wrong mindset before you even pick up the phone. When you reframe outreach as education and relationship building, everything changes. Here is how to shift your thinking and your results.", "https://www.linkedin.com/pulse/stop-calling-it-cold-call-nicholas-lynch", "2025-11-05", False),
+    ("a-discharge-planners", "What Your Discharge Planners Wish You Knew", "After interviewing dozens of discharge planners across the country, the patterns are clear. They do not want another lunch. They do not want another brochure. They want reliability, responsiveness, and someone who makes their job easier. This article breaks down exactly what that looks like.", "https://www.linkedin.com/pulse/what-your-discharge-planners-wish-you-knew-nicholas-lynch", "2025-10-29", False),
+    ("a-coaching-convo", "The Coaching Conversation Your Sales Manager Owes You", "If your one on ones consist of 'how are your numbers looking,' you are not being coached. Real coaching means your manager is helping you think differently about your accounts, your conversations, and your process. This article outlines what a productive coaching conversation should include.", "https://www.linkedin.com/pulse/coaching-conversation-your-sales-manager-owes-you-nicholas-lynch", "2025-10-15", False),
+    ("a-empathy", "Empathy Is Not a Sales Technique", "Too many sales training programs teach empathy as a tactic. Something you say to get people to trust you. That is manipulation, not empathy. In hospice sales, genuine empathy means understanding what families and clinicians are going through and showing up accordingly. This article explores the difference.", "https://www.linkedin.com/pulse/empathy-not-sales-technique-nicholas-lynch", "2025-10-08", False),
+    ("a-five-signs", "Five Signs Your Hospice Sales Team Needs Outside Help", "Not every organization needs a consultant. But there are clear warning signs that internal coaching alone is not enough. High turnover among reps, a census that has flatlined for more than two quarters, and a team that cannot articulate their value proposition are just the start.", "https://www.linkedin.com/pulse/five-signs-your-hospice-sales-team-needs-outside-help-nicholas-lynch", "2025-10-01", False),
+    ("a-why-failure", "Why Failure Is a Must: Essential Lessons for Personal Development and Success", "Why failure is needed. Take a few moments and check out the article.", "https://www.linkedin.com/posts/nicholas-lynch-coaching_why-failure-is-needed-take-a-few-moments-activity-7395222645656416256-oIr7", "2025-11-15", True),
 ]
 
 
@@ -442,6 +465,13 @@ async def startup():
         async with pool.acquire() as conn:
             for stmt in _CREATE_TABLES:
                 await conn.execute(stmt)
+            for row in _SEED_ARTICLES:
+                await conn.execute(
+                    """INSERT INTO articles (id, title, description, linkedin_url, publish_date, featured)
+                       VALUES ($1, $2, $3, $4, $5, $6)
+                       ON CONFLICT (id) DO NOTHING""",
+                    row[0], row[1], row[2], row[3], date.fromisoformat(row[4]), row[5],
+                )
         logger.info("PostgreSQL pool ready")
     except Exception as exc:
         logger.error("PostgreSQL startup failed: %s", exc)
@@ -1119,6 +1149,53 @@ async def admin_eligibility(_: bool = Depends(require_admin), limit: int = 100):
     return {"items": items, "count": len(items)}
 
 
+class ArticlePayload(BaseModel):
+    title: str
+    description: str
+    body: Optional[str] = None
+    linkedinUrl: Optional[str] = None
+    publishDate: str
+    featured: bool = False
+
+
+@api.post("/admin/articles", status_code=201)
+async def admin_create_article(payload: ArticlePayload, _: bool = Depends(require_admin)):
+    if not pool:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    slug = _re.sub(r"[^a-z0-9]+", "-", payload.title.lower()).strip("-")[:50]
+    article_id = "a-" + slug
+    async with pool.acquire() as conn:
+        existing = await conn.fetchval("SELECT id FROM articles WHERE id = $1", article_id)
+        if existing:
+            raise HTTPException(status_code=409, detail=f"Article id '{article_id}' already exists — use PUT to update")
+        await conn.execute(
+            """INSERT INTO articles (id, title, description, body, linkedin_url, publish_date, featured)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)""",
+            article_id, payload.title, payload.description, payload.body,
+            payload.linkedinUrl, date.fromisoformat(payload.publishDate), payload.featured,
+        )
+    return {"id": article_id, "status": "created"}
+
+
+@api.put("/admin/articles/{article_id}")
+async def admin_update_article(article_id: str, payload: ArticlePayload, _: bool = Depends(require_admin)):
+    if not pool:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            """UPDATE articles
+               SET title=$1, description=$2, body=$3, linkedin_url=$4,
+                   publish_date=$5, featured=$6
+               WHERE id=$7""",
+            payload.title, payload.description, payload.body,
+            payload.linkedinUrl, date.fromisoformat(payload.publishDate), payload.featured,
+            article_id,
+        )
+    if result == "UPDATE 0":
+        raise HTTPException(status_code=404, detail="Article not found")
+    return {"id": article_id, "status": "updated"}
+
+
 # ---------- Billing / Stripe ----------
 COACHING_PACKAGES = {
     "coaching_30": {"name": "Virtual Coaching Session — 30 minutes", "amount": 40.00, "currency": "usd", "duration_min": 30},
@@ -1331,9 +1408,43 @@ async def content_testimonials():
     return {"testimonials": REPO_TESTIMONIALS, "caseStudies": REPO_CASE_STUDIES}
 
 
+def _article_row_to_dict(r) -> dict:
+    return {
+        "id": r["id"],
+        "title": r["title"],
+        "description": r["description"],
+        "body": r["body"],
+        "linkedinUrl": r["linkedin_url"],
+        "publishDate": str(r["publish_date"]),
+        "featured": r["featured"],
+    }
+
+
 @api.get("/content/articles")
 async def content_articles():
-    return {"articles": REPO_ARTICLES}
+    if not pool:
+        return {"articles": REPO_ARTICLES}
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT id, title, description, body, linkedin_url, publish_date, featured "
+            "FROM articles ORDER BY publish_date DESC"
+        )
+    return {"articles": [_article_row_to_dict(r) for r in rows]}
+
+
+@api.get("/content/articles/{article_id}")
+async def content_article(article_id: str):
+    if not pool:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id, title, description, body, linkedin_url, publish_date, featured "
+            "FROM articles WHERE id = $1",
+            article_id,
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Article not found")
+    return _article_row_to_dict(row)
 
 
 @api.get("/content/podcasts")

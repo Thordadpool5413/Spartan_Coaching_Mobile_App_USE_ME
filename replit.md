@@ -118,6 +118,65 @@ In App Store Connect → your app → App Information, enter the Terms of Use UR
 | Push | expo-notifications (APNs) |
 | Auth | Deep link scheme `spartan://` for post-payment return |
 
+## Publishing articles
+
+Articles are stored in PostgreSQL and served to the app. Nick can add or update articles
+via the admin API using any HTTP tool (curl, Postman, Insomnia, etc.).
+
+### Add a new article
+
+```bash
+curl -X POST https://<your-backend-url>/api/admin/articles \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Your Article Title Here",
+    "description": "One or two sentence summary shown on the articles list card.",
+    "body": "# Your Article Title Here\n\nFull article body written in **markdown**.\n\nUse ## for section headings, **bold**, *italic*, and - bullet lists.\n\nJust write natural paragraphs separated by blank lines.",
+    "linkedinUrl": "https://www.linkedin.com/pulse/your-article-url",
+    "publishDate": "2026-01-15",
+    "featured": false
+  }'
+```
+
+- `body` — full article text in markdown. Omit or set `null` if not ready; the app shows "Full article coming soon."
+- `linkedinUrl` — optional. If set, a "View on LinkedIn" link appears at the bottom of the reader.
+- `featured` — set `true` to show the gold FEATURED badge on the card.
+- The article `id` is auto-generated from the title (e.g. "My New Article" → `a-my-new-article`).
+
+### Update an existing article (add/replace body text)
+
+```bash
+curl -X PUT https://<your-backend-url>/api/admin/articles/a-real-reason \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "The Real Reason Your Hospice Census Is Stuck",
+    "description": "Most hospice organizations blame their census plateau...",
+    "body": "# The Real Reason Your Hospice Census Is Stuck\n\nYour full article text here...",
+    "linkedinUrl": "https://www.linkedin.com/pulse/real-reason-your-hospice-census-stuck-nicholas-lynch",
+    "publishDate": "2025-11-12",
+    "featured": true
+  }'
+```
+
+Replace `a-real-reason` with the article id you want to update. All fields are required on PUT.
+
+### Existing article IDs (for updates)
+
+| ID | Title |
+|---|---|
+| `a-real-reason` | The Real Reason Your Hospice Census Is Stuck |
+| `a-territory-planning` | Territory Planning Is Not Optional |
+| `a-stop-cold-call` | Stop Calling It a Cold Call |
+| `a-discharge-planners` | What Your Discharge Planners Wish You Knew |
+| `a-coaching-convo` | The Coaching Conversation Your Sales Manager Owes You |
+| `a-empathy` | Empathy Is Not a Sales Technique |
+| `a-five-signs` | Five Signs Your Hospice Sales Team Needs Outside Help |
+| `a-why-failure` | Why Failure Is a Must |
+
+---
+
 ## User preferences
 
 - Dark mode only (`userInterfaceStyle: "dark"` enforced in app)
