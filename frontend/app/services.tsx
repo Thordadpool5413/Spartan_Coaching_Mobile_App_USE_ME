@@ -302,17 +302,23 @@ export default function ServicesScreen() {
         setBookOpen(false);
         const WebBrowser = await import('expo-web-browser');
         const result = await WebBrowser.openAuthSessionAsync(url, 'spartan://payment-success');
+        // Only treat as a successful payment return when the redirect URL explicitly
+        // points to payment-success AND carries a session_id.  Stripe's cancel_url
+        // (spartan://services) also resolves as type='success', so we must validate
+        // the host/path before navigating — everything else reopens the booking modal.
+        let navigatedToSuccess = false;
         if (result.type === 'success' && result.url) {
-          // Parse session_id from the redirect URL spartan://payment-success?session_id=...
           try {
             const parsed = new URL(result.url);
-            const sid = parsed.searchParams.get('session_id') || session_id;
-            router.push({ pathname: '/payment-success', params: { session_id: sid } } as any);
-          } catch {
-            router.push({ pathname: '/payment-success', params: { session_id } } as any);
-          }
-        } else {
-          // User cancelled or dismissed — reopen the booking modal so they can try again
+            const sid = parsed.searchParams.get('session_id');
+            if (parsed.hostname === 'payment-success' && sid) {
+              router.push({ pathname: '/payment-success', params: { session_id: sid } } as any);
+              navigatedToSuccess = true;
+            }
+          } catch {}
+        }
+        if (!navigatedToSuccess) {
+          // Cancel, dismiss, or unrecognised redirect — return user to the booking modal
           setBookOpen(true);
         }
       }
