@@ -171,44 +171,85 @@ export default function SettingsScreen() {
           <Card style={{ marginBottom: spacing.m }}>
             <View style={styles.toggleRow}>
               <LinearGradient
-                colors={isActive ? [palette.primary, palette.primaryDark] : [palette.bgElev3, palette.bgElev3]}
+                colors={
+                  stripeStatus === 'active'
+                    ? [palette.primary, palette.primaryDark]
+                    : tier === 'trial' && isActive
+                    ? [palette.discipline, '#1d4ed8']
+                    : [palette.bgElev3, palette.bgElev3]
+                }
                 style={styles.subIcon}
               >
-                <Ionicons name={isActive ? 'sparkles' : 'lock-closed-outline'} size={18} color="#fff" />
+                <Ionicons
+                  name={stripeStatus === 'active' ? 'sparkles' : tier === 'trial' && isActive ? 'time-outline' : 'lock-closed-outline'}
+                  size={18}
+                  color="#fff"
+                />
               </LinearGradient>
               <View style={{ flex: 1 }}>
                 <H3 style={{ fontSize: 16 }}>
-                  {stripeStatus === 'active' ? 'Spartan Pro' : tier === 'trial' && isActive ? 'Free Trial' : 'Trial Ended'}
+                  {stripeStatus === 'active'
+                    ? 'Spartan Pro'
+                    : stripeStatus === 'canceled'
+                    ? 'Subscription Cancelled'
+                    : tier === 'trial' && isActive
+                    ? 'Free Trial'
+                    : 'Trial Ended'}
                 </H3>
                 <Small dim>
                   {stripeStatus === 'active'
                     ? 'Active · $39.99/month'
+                    : stripeStatus === 'canceled'
+                    ? 'Resubscribe to restore AI access'
                     : tier === 'trial' && isActive
-                    ? `${trialHoursLeft}h left in free trial`
+                    ? `${trialHoursLeft}h left in your free trial`
                     : 'Subscribe to unlock AI coaching'}
                 </Small>
               </View>
             </View>
 
             <View style={{ marginTop: spacing.l, gap: spacing.s }}>
-              {stripeStatus === 'active' ? (
-                <PrimaryButton
-                  label={subBusy ? 'Opening…' : 'Manage Subscription'}
-                  disabled={subBusy}
-                  onPress={async () => {
-                    setSubBusy(true);
-                    try {
-                      const url = await getSubscriptionPortalUrl();
-                      await WebBrowser.openBrowserAsync(url);
-                      refreshSub();
-                    } catch {
-                      Alert.alert('Error', 'Could not open subscription portal. Please try again.');
-                    } finally {
-                      setSubBusy(false);
-                    }
-                  }}
-                  icon={subBusy ? <ActivityIndicator color="#fff" size="small" /> : <Ionicons name="open-outline" size={14} color="#fff" />}
-                />
+              {stripeStatus === 'active' || stripeStatus === 'canceled' ? (
+                <>
+                  <PrimaryButton
+                    label={subBusy ? 'Opening…' : stripeStatus === 'canceled' ? 'Resubscribe — $39.99/mo' : 'Manage Subscription'}
+                    disabled={subBusy}
+                    onPress={async () => {
+                      if (stripeStatus === 'canceled') {
+                        router.push('/paywall' as any);
+                        return;
+                      }
+                      setSubBusy(true);
+                      try {
+                        const url = await getSubscriptionPortalUrl();
+                        await WebBrowser.openBrowserAsync(url);
+                        refreshSub();
+                      } catch {
+                        Alert.alert('Error', 'Could not open subscription portal. Please try again.');
+                      } finally {
+                        setSubBusy(false);
+                      }
+                    }}
+                    icon={subBusy ? <ActivityIndicator color="#fff" size="small" /> : <Ionicons name={stripeStatus === 'canceled' ? 'sparkles' : 'open-outline'} size={14} color="#fff" />}
+                  />
+                  {stripeStatus === 'active' && (
+                    <GhostButton
+                      label="Billing portal"
+                      onPress={async () => {
+                        setSubBusy(true);
+                        try {
+                          const url = await getSubscriptionPortalUrl();
+                          await WebBrowser.openBrowserAsync(url);
+                          refreshSub();
+                        } catch {
+                          Alert.alert('Error', 'Could not open billing portal.');
+                        } finally {
+                          setSubBusy(false);
+                        }
+                      }}
+                    />
+                  )}
+                </>
               ) : (
                 <PrimaryButton
                   label={subBusy ? 'Opening…' : 'Unlock Pro — $39.99/mo'}
