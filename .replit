@@ -15,7 +15,7 @@ LLM_MODEL = "gpt-4o"
 LLM_MODEL_FAST = "gpt-4o-mini"
 CONTACT_EMAIL = "nick@spartanhospicecoaching.com"
 RESEND_FROM_NAME = "Spartan Coaching"
-ADMIN_TOKEN = "spartan-admin"
+ADMIN_TOKEN = "5413"
 PORT = "8000"
 EXPO_PUBLIC_BACKEND_URL = "https://7054fac5-9531-47b8-90e3-fa8de0511f04-00-3icmtlgpf9s15.kirk.replit.dev"
 
