@@ -13,7 +13,7 @@ const VALUES = [
   { title: 'Practical Over Theoretical', desc: 'Coaching happens in the work, not in a classroom.', icon: 'book' as const },
   { title: 'Consistency Over Intensity', desc: 'Simple plans repeated well beat heroic one-time efforts.', icon: 'sync' as const },
   { title: 'Patient-First Outcomes', desc: 'Every strategy prioritizes getting eligible patients into care earlier.', icon: 'heart' as const },
-  { title: 'Ethical Relationship Building', desc: 'Education-based outreach that respects clinical partners.', icon: 'handshake-o' as any },
+  { title: 'Ethical Relationship Building', desc: 'Education-based outreach that respects clinical partners.', icon: 'people-outline' as const },
 ];
 
 export default function AboutScreen() {

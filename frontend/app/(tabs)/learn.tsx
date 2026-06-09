@@ -1,10 +1,11 @@
-import React from 'react';
-import { ScrollView, View, Pressable, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ScrollView, View, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { palette, radius, spacing } from '../../theme';
 import { H1, H3, Body, Small, SectionLabel, Card, GhostButton } from '../../components/UI';
+import { getArticles, Article } from '../../lib/api';
 
 const ITEMS = [
   { route: '/knowledge', icon: 'library' as const, title: 'Knowledge Base', desc: '40+ entries: eligibility, regulations, levels of care, compliance, sales terms.' },
@@ -12,27 +13,18 @@ const ITEMS = [
   { route: '/roleplay', icon: 'people' as const, title: 'Role-Play Practice', desc: 'Six AI scenarios: cold call, physician objection, family consult, and more.' },
 ];
 
-const ARTICLES = [
-  {
-    title: 'Eligibility is not a sales decision. It is a clinical one.',
-    excerpt: 'Hospice eligibility lives in the clinical record, not in the cold call. Here is how to talk about it without crossing the line.',
-  },
-  {
-    title: 'The eighteen-day problem',
-    excerpt: 'The median hospice length of stay is around 18 days. What that means for families, clinicians, and the sales team trying to help.',
-  },
-  {
-    title: 'Why "checking in" is killing your pipeline',
-    excerpt: 'If your last six visits could be summarized as "checking in," you are not doing relationship building. You are doing avoidance.',
-  },
-  {
-    title: 'How to coach without micromanaging',
-    excerpt: 'A weekly rhythm that holds reps accountable without making the leader the bottleneck. Three meetings, four hours total, real outcomes.',
-  },
-];
-
 export default function LearnTab() {
   const router = useRouter();
+  const [articles, setArticles] = useState<Article[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getArticles()
+      .then((d) => setArticles((d.articles || []).slice(0, 4)))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: palette.bg }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 100, padding: spacing.l }}>
@@ -62,15 +54,37 @@ export default function LearnTab() {
 
         <SectionLabel>Field Notes</SectionLabel>
         <H3 style={{ marginBottom: spacing.l }}>Recent perspective from Nick Lynch</H3>
-        {ARTICLES.map((a, i) => (
-          <Card key={i} style={{ marginBottom: spacing.m }}>
-            <Small dim style={{ marginBottom: 4, color: palette.primary }}>Article · 6 min read</Small>
-            <H3 style={{ marginBottom: 6 }}>{a.title}</H3>
-            <Body dim>{a.excerpt}</Body>
-          </Card>
+
+        {loading && <ActivityIndicator color={palette.primary} style={{ marginBottom: spacing.l }} />}
+
+        {!loading && articles.map((a) => (
+          <Pressable
+            key={a.id}
+            onPress={() => router.push({ pathname: '/article-detail', params: { id: a.id } } as any)}
+            style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1 }]}
+          >
+            <Card style={{ marginBottom: spacing.m }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <Small style={{ color: palette.primary, fontWeight: '700' }}>
+                  {a.featured ? 'FEATURED · ' : ''}Article
+                </Small>
+                <Small dim>{a.publishDate}</Small>
+              </View>
+              <H3 style={{ marginBottom: 6 }}>{a.title}</H3>
+              <Body dim numberOfLines={2}>{a.description}</Body>
+              <Small style={{ color: palette.primary, fontWeight: '700', marginTop: spacing.s }}>
+                Read article →
+              </Small>
+            </Card>
+          </Pressable>
         ))}
+
+        {!loading && articles.length === 0 && (
+          <Body dim style={{ marginBottom: spacing.l }}>No articles yet.</Body>
+        )}
+
         <GhostButton
-          label="Read all articles on LinkedIn →"
+          label="All articles & insights →"
           onPress={() => router.push('/articles' as any)}
           style={{ marginTop: spacing.s }}
         />
