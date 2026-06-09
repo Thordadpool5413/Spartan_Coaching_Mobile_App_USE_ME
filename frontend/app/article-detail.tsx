@@ -70,7 +70,7 @@ export default function ArticleDetailScreen() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }}>
+      <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
         {!article && !err && <ActivityIndicator color={palette.primary} style={{ marginTop: spacing.xl }} />}
         {err && <Body dim>{err}</Body>}
 

@@ -24,7 +24,7 @@ export default function KnowledgeScreen() {
 
   return (
     <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
-      <ScrollView stickyHeaderIndices={[0]} contentContainerStyle={{ paddingBottom: 80 }}>
+      <ScrollView stickyHeaderIndices={[0]} contentContainerStyle={{ paddingBottom: 80 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <SectionLabel>Reference</SectionLabel>
           <H2 style={{ marginBottom: spacing.s }}>Knowledge Base</H2>

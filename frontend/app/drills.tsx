@@ -148,6 +148,8 @@ export default function DrillsScreen() {
     <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
       <ScrollView
         contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={palette.primary} />}
       >
         <SectionLabel>Daily Practice</SectionLabel>

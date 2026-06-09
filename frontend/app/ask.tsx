@@ -50,7 +50,7 @@ export default function AskScreen() {
   return (
     <PaywallGate feature="Ask a Hospice Expert">
     <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }}>
+      <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <SectionLabel>AI · Field-Ready</SectionLabel>
         <H2 style={{ marginBottom: spacing.s }}>Ask a Hospice Expert</H2>
         <Body dim style={{ marginBottom: spacing.l }}>

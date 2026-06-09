@@ -21,7 +21,7 @@ export default function TestimonialsScreen() {
 
   return (
     <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }}>
+      <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
         <SectionLabel>Success Stories</SectionLabel>
         <H1 style={{ marginBottom: spacing.s }}>What People Are Saying</H1>
         <Body dim style={{ marginBottom: spacing.l }}>

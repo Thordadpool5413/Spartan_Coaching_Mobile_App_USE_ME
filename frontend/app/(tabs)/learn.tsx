@@ -37,7 +37,9 @@ export default function LearnTab() {
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: palette.bg }}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 100, padding: spacing.l }}
+        contentContainerStyle={{ paddingBottom: 120, padding: spacing.l }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={palette.primary} />}
       >
         <SectionLabel>Learn</SectionLabel>

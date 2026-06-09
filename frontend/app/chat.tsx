@@ -64,7 +64,7 @@ export default function ChatScreen() {
           style={{ flex: 1 }}
           keyboardVerticalOffset={keyboardOffset}
         >
-          <ScrollView ref={scrollRef} contentContainerStyle={{ padding: spacing.l, paddingBottom: 20, gap: spacing.m }}>
+          <ScrollView ref={scrollRef} contentContainerStyle={{ padding: spacing.l, paddingBottom: 20, gap: spacing.m }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             {messages.length === 0 && (
               <View style={{ alignItems: 'center', paddingVertical: spacing.xxxl }}>
                 <View style={styles.heroIcon}>
