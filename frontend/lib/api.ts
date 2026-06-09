@@ -274,7 +274,8 @@ export type Article = {
   id: string;
   title: string;
   description: string;
-  linkedinUrl: string;
+  body?: string;
+  linkedinUrl?: string;
   publishDate: string;
   featured: boolean;
 };
@@ -299,6 +300,10 @@ export async function getTestimonials() {
 export async function getArticles() {
   const { data } = await api.get('/content/articles');
   return data as { articles: Article[] };
+}
+export async function getArticle(id: string) {
+  const { data } = await api.get(`/content/articles/${id}`);
+  return data as Article;
 }
 export async function getPodcasts() {
   const { data } = await api.get('/content/podcasts');
