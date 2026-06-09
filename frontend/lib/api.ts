@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import { getDeviceId } from './device';
 
 /**
  * Resolve the backend base URL at REQUEST time (not module-init).
@@ -33,6 +34,29 @@ export const api = axios.create({
 // Recompute base URL per-request so it never goes stale across hot reloads.
 api.interceptors.request.use((config) => {
   config.baseURL = `${resolveBackendUrl()}/api`;
+  return config;
+});
+
+const AI_ENDPOINTS = ['/ask', '/chat', '/tools/objection', '/tools/playbook', '/roleplay/turn', '/eligibility/assess'];
+
+api.interceptors.request.use(async (config) => {
+  const url = config.url ?? '';
+  if (config.method === 'post' && AI_ENDPOINTS.some((ep) => url.endsWith(ep))) {
+    const deviceId = await getDeviceId();
+    if (typeof config.data === 'string') {
+      try {
+        const parsed = JSON.parse(config.data);
+        if (!parsed.deviceId) {
+          config.data = JSON.stringify({ ...parsed, deviceId });
+        }
+      } catch {
+      }
+    } else if (config.data && typeof config.data === 'object') {
+      if (!config.data.deviceId) {
+        config.data = { ...config.data, deviceId };
+      }
+    }
+  }
   return config;
 });
 
