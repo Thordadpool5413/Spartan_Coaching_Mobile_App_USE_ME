@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, View, Switch, Pressable, StyleSheet, Platform, Alert, ActivityIndicator } from 'react-native';
+import { ScrollView, View, Switch, Pressable, StyleSheet, Platform, Alert, ActivityIndicator, Modal, TextInput, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as WebBrowser from 'expo-web-browser';
 import { palette, radius, spacing } from '../theme';
-import { Card, PrimaryButton, GhostButton, H1, H2, H3, Body, Small, SectionLabel } from '../components/UI';
+import { Card, PrimaryButton, GhostButton, H1, H3, Body, Small, SectionLabel } from '../components/UI';
 import {
   getNotifSettings,
   setNotifSettings,
@@ -15,7 +15,7 @@ import {
   cancelDailyDrillReminder,
   NotifSettings,
 } from '../lib/notifications';
-import { useSubscription, getSubscriptionPortalUrl, createSubscriptionCheckout, invalidateSubscriptionCache, fetchSubscriptionStatus } from '../lib/subscription';
+import { useSubscription, getSubscriptionPortalUrl, createSubscriptionCheckout, invalidateSubscriptionCache, fetchSubscriptionStatus, redeemTeamCode } from '../lib/subscription';
 
 const TIME_OPTIONS = [
   { h: 6, m: 0, label: '6:00 AM' },
@@ -34,8 +34,15 @@ export default function SettingsScreen() {
   const [settings, setSettings] = useState<NotifSettings>({ enabled: false, hour: 8, minute: 0 });
   const [busy, setBusy] = useState(false);
   const [permDenied, setPermDenied] = useState(false);
-  const { tier, isActive, trialHoursLeft, stripeStatus, refresh: refreshSub } = useSubscription();
+  const { tier, isActive, trialHoursLeft, stripeStatus, companyName, refresh: refreshSub } = useSubscription();
   const [subBusy, setSubBusy] = useState(false);
+
+  // Team code redemption modal
+  const [teamModalVisible, setTeamModalVisible] = useState(false);
+  const [teamCode, setTeamCode] = useState('');
+  const [teamCodeBusy, setTeamCodeBusy] = useState(false);
+  const [teamCodeError, setTeamCodeError] = useState<string | null>(null);
+  const [teamCodeSuccess, setTeamCodeSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     getNotifSettings().then(setSettings);
@@ -172,7 +179,9 @@ export default function SettingsScreen() {
             <View style={styles.toggleRow}>
               <LinearGradient
                 colors={
-                  stripeStatus === 'active'
+                  tier === 'team'
+                    ? [palette.success, '#059669']
+                    : stripeStatus === 'active'
                     ? [palette.primary, palette.primaryDark]
                     : tier === 'trial' && isActive
                     ? [palette.discipline, '#1d4ed8']
@@ -181,14 +190,24 @@ export default function SettingsScreen() {
                 style={styles.subIcon}
               >
                 <Ionicons
-                  name={stripeStatus === 'active' ? 'sparkles' : tier === 'trial' && isActive ? 'time-outline' : 'lock-closed-outline'}
+                  name={
+                    tier === 'team'
+                      ? 'people'
+                      : stripeStatus === 'active'
+                      ? 'sparkles'
+                      : tier === 'trial' && isActive
+                      ? 'time-outline'
+                      : 'lock-closed-outline'
+                  }
                   size={18}
                   color="#fff"
                 />
               </LinearGradient>
               <View style={{ flex: 1 }}>
                 <H3 style={{ fontSize: 16 }}>
-                  {stripeStatus === 'active'
+                  {tier === 'team'
+                    ? 'Team Member'
+                    : stripeStatus === 'active'
                     ? 'Spartan Pro'
                     : stripeStatus === 'canceled'
                     ? 'Subscription Cancelled'
@@ -197,7 +216,9 @@ export default function SettingsScreen() {
                     : 'Trial Ended'}
                 </H3>
                 <Small dim>
-                  {stripeStatus === 'active'
+                  {tier === 'team'
+                    ? companyName ? `${companyName} · Team access active` : 'Team access active'
+                    : stripeStatus === 'active'
                     ? 'Active · $39.99/month'
                     : stripeStatus === 'canceled'
                     ? 'Resubscribe to restore AI access'
@@ -209,7 +230,14 @@ export default function SettingsScreen() {
             </View>
 
             <View style={{ marginTop: spacing.l, gap: spacing.s }}>
-              {stripeStatus === 'active' || stripeStatus === 'canceled' ? (
+              {tier === 'team' ? (
+                <View style={[styles.teamBadge]}>
+                  <Ionicons name="checkmark-circle" size={16} color={palette.success} />
+                  <Small style={{ color: palette.success, fontWeight: '600', flex: 1 }}>
+                    All AI features unlocked via team license
+                  </Small>
+                </View>
+              ) : stripeStatus === 'active' || stripeStatus === 'canceled' ? (
                 <>
                   <PrimaryButton
                     label={subBusy ? 'Opening…' : stripeStatus === 'canceled' ? 'Resubscribe — $39.99/mo' : 'Manage Subscription'}
@@ -260,7 +288,131 @@ export default function SettingsScreen() {
               )}
             </View>
           </Card>
+
+          {tier !== 'team' && (
+            <>
+              <Pressable
+                onPress={() => {
+                  setTeamCode('');
+                  setTeamCodeError(null);
+                  setTeamCodeSuccess(null);
+                  setTeamModalVisible(true);
+                }}
+                style={({ pressed }) => [styles.teamCodeRow, { opacity: pressed ? 0.7 : 1 }]}
+              >
+                <Ionicons name="key-outline" size={18} color={palette.textMuted} />
+                <Small dim style={{ flex: 1 }}>Have a team code?</Small>
+                <Ionicons name="chevron-forward" size={16} color={palette.textMuted} />
+              </Pressable>
+
+              <Pressable
+                onPress={() => router.push('/team-checkout' as any)}
+                style={({ pressed }) => [styles.teamCodeRow, { marginTop: spacing.s, opacity: pressed ? 0.7 : 1 }]}
+              >
+                <Ionicons name="business-outline" size={18} color={palette.textMuted} />
+                <Small dim style={{ flex: 1 }}>Buy a team license for your organization</Small>
+                <Ionicons name="chevron-forward" size={16} color={palette.textMuted} />
+              </Pressable>
+            </>
+          )}
         </View>
+
+        {/* Team Code Redemption Modal */}
+        <Modal
+          visible={teamModalVisible}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setTeamModalVisible(false)}
+        >
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+            <Pressable style={styles.modalOverlay} onPress={() => setTeamModalVisible(false)}>
+              <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+                <View style={styles.modalHandle} />
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: spacing.l }}>
+                  <View style={styles.modalIcon}>
+                    <Ionicons name="key" size={20} color={palette.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <H3 style={{ fontSize: 17 }}>Redeem Team Code</H3>
+                    <Small dim>Enter the code from your employer</Small>
+                  </View>
+                  <Pressable onPress={() => setTeamModalVisible(false)}>
+                    <Ionicons name="close" size={22} color={palette.textMuted} />
+                  </Pressable>
+                </View>
+
+                {teamCodeSuccess ? (
+                  <View style={styles.successBox}>
+                    <Ionicons name="checkmark-circle" size={32} color={palette.success} style={{ marginBottom: spacing.s }} />
+                    <Small style={{ color: palette.success, fontWeight: '700', fontSize: 15, textAlign: 'center', marginBottom: spacing.xs }}>
+                      Team access activated
+                    </Small>
+                    <Small dim style={{ textAlign: 'center' }}>{teamCodeSuccess}</Small>
+                    <PrimaryButton
+                      label="Done"
+                      onPress={() => setTeamModalVisible(false)}
+                      style={{ marginTop: spacing.l }}
+                    />
+                  </View>
+                ) : (
+                  <>
+                    <TextInput
+                      value={teamCode}
+                      onChangeText={(t) => {
+                        setTeamCode(t.toUpperCase());
+                        setTeamCodeError(null);
+                      }}
+                      placeholder="SPARTAN-DELTA-4K"
+                      placeholderTextColor={palette.textFaint}
+                      autoCapitalize="characters"
+                      autoCorrect={false}
+                      style={[styles.codeInput, teamCodeError ? styles.codeInputError : null]}
+                    />
+
+                    {teamCodeError && (
+                      <View style={styles.errorRow}>
+                        <Ionicons name="alert-circle-outline" size={14} color={palette.primary} />
+                        <Small style={{ color: palette.primary, flex: 1 }}>{teamCodeError}</Small>
+                      </View>
+                    )}
+
+                    <PrimaryButton
+                      label={teamCodeBusy ? 'Verifying…' : 'Redeem'}
+                      disabled={teamCodeBusy || teamCode.trim().length < 5}
+                      onPress={async () => {
+                        setTeamCodeBusy(true);
+                        setTeamCodeError(null);
+                        try {
+                          const result = await redeemTeamCode(teamCode);
+                          refreshSub();
+                          setTeamCodeSuccess(
+                            result.companyName
+                              ? `${result.companyName} · ${result.seatsRemaining} seat${result.seatsRemaining !== 1 ? 's' : ''} remaining`
+                              : `${result.seatsRemaining} seat${result.seatsRemaining !== 1 ? 's' : ''} remaining on this license`
+                          );
+                        } catch (err: any) {
+                          const msg = err?.response?.data?.detail || 'Invalid or expired team code.';
+                          setTeamCodeError(msg);
+                        } finally {
+                          setTeamCodeBusy(false);
+                        }
+                      }}
+                      icon={teamCodeBusy ? <ActivityIndicator color="#fff" size="small" /> : undefined}
+                      style={{ marginTop: spacing.m }}
+                    />
+
+                    <GhostButton
+                      label="Cancel"
+                      onPress={() => setTeamModalVisible(false)}
+                      style={{ marginTop: spacing.s }}
+                    />
+                  </>
+                )}
+              </Pressable>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Modal>
 
         <View style={{ marginTop: spacing.xxl }}>
           <SectionLabel>About this app</SectionLabel>
@@ -315,5 +467,61 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.l, paddingVertical: spacing.m,
     borderRadius: radius.md, backgroundColor: palette.bgElev1,
     borderWidth: 1, borderColor: palette.cardBorder,
+  },
+  teamBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: 'rgba(16,185,129,0.1)',
+    borderRadius: radius.md, padding: spacing.m,
+    borderWidth: 1, borderColor: 'rgba(16,185,129,0.25)',
+  },
+  teamCodeRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: spacing.l, paddingVertical: spacing.m,
+    borderRadius: radius.md, backgroundColor: palette.bgElev1,
+    borderWidth: 1, borderColor: palette.cardBorder,
+    marginBottom: spacing.xs,
+  },
+  // Modal
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: palette.bgElev1,
+    borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl,
+    padding: spacing.xl, paddingBottom: 40,
+    borderWidth: 1, borderColor: palette.cardBorder,
+  },
+  modalHandle: {
+    width: 36, height: 4, borderRadius: 2,
+    backgroundColor: palette.bgElev3, alignSelf: 'center',
+    marginBottom: spacing.l,
+  },
+  modalIcon: {
+    width: 40, height: 40, borderRadius: 10,
+    backgroundColor: palette.primaryTint,
+    borderWidth: 1, borderColor: palette.primary + '30',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  codeInput: {
+    backgroundColor: palette.bgElev2,
+    borderWidth: 1, borderColor: palette.cardBorder,
+    borderRadius: radius.md, padding: spacing.l,
+    color: palette.text,
+    fontSize: 20, fontWeight: '700', letterSpacing: 2,
+    textAlign: 'center',
+    marginBottom: spacing.s,
+  },
+  codeInputError: {
+    borderColor: palette.primary,
+    backgroundColor: palette.primaryTint,
+  },
+  errorRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    marginBottom: spacing.s,
+  },
+  successBox: {
+    alignItems: 'center',
+    paddingVertical: spacing.xxl,
   },
 });

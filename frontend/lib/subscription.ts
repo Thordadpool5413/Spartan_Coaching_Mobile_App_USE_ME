@@ -10,6 +10,7 @@ export type SubscriptionStatus = {
   stripeStatus: string | null;
   isActive: boolean;
   trialHoursLeft: number;
+  companyName: string | null;
   loading: boolean;
 };
 
@@ -19,6 +20,7 @@ const INITIAL: SubscriptionStatus = {
   stripeStatus: null,
   isActive: true, // optimistic — assume active until we know otherwise
   trialHoursLeft: 0,
+  companyName: null,
   loading: true,
 };
 
@@ -42,6 +44,7 @@ export async function fetchSubscriptionStatus(): Promise<SubscriptionStatus> {
       stripeStatus: data.stripe_status ?? null,
       isActive: data.is_active ?? true,
       trialHoursLeft: data.trial_hours_left ?? 0,
+      companyName: data.company_name ?? null,
       loading: false,
     };
     notify(s);
@@ -104,5 +107,16 @@ export async function createSubscriptionCheckout(originUrl: string): Promise<str
 
 export async function getSubscriptionPortalUrl(): Promise<string> {
   const { data } = await api.get('/subscription/portal');
+  return data.url as string;
+}
+
+export async function redeemTeamCode(code: string): Promise<{ companyName: string; seatsRemaining: number }> {
+  const { data } = await api.post('/team/redeem', { team_code: code.trim().toUpperCase() });
+  invalidateSubscriptionCache();
+  return { companyName: data.company_name as string, seatsRemaining: data.seats_remaining as number };
+}
+
+export async function createTeamCheckout(seats: 5 | 10, originUrl: string): Promise<string> {
+  const { data } = await api.post('/subscription/team-checkout', { seats, origin_url: originUrl });
   return data.url as string;
 }

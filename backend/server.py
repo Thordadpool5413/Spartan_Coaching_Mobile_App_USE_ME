@@ -57,9 +57,11 @@ CONTACT_EMAIL     = os.environ.get("CONTACT_EMAIL", "nick@spartanhospicecoaching
 LLM_MODEL         = os.environ.get("LLM_MODEL", "gpt-4o")
 LLM_MODEL_FAST    = os.environ.get("LLM_MODEL_FAST", "gpt-4o-mini")
 ADMIN_TOKEN       = os.environ.get("ADMIN_TOKEN", "spartan-admin")
-STRIPE_API_KEY        = os.environ.get("STRIPE_API_KEY")
-STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET")
-STRIPE_PRO_PRICE_ID   = os.environ.get("STRIPE_PRO_PRICE_ID")
+STRIPE_API_KEY          = os.environ.get("STRIPE_API_KEY")
+STRIPE_WEBHOOK_SECRET   = os.environ.get("STRIPE_WEBHOOK_SECRET")
+STRIPE_PRO_PRICE_ID     = os.environ.get("STRIPE_PRO_PRICE_ID")
+STRIPE_TEAM_5_PRICE_ID  = os.environ.get("STRIPE_TEAM_5_PRICE_ID")
+STRIPE_TEAM_10_PRICE_ID = os.environ.get("STRIPE_TEAM_10_PRICE_ID")
 CORS_ALLOWED_ORIGINS = [
     o.strip()
     for o in os.environ.get("CORS_ALLOWED_ORIGINS", "*").split(",")
@@ -470,6 +472,24 @@ _CREATE_TABLES = [
         updated_at             TIMESTAMPTZ DEFAULT NOW()
     )
     """,
+    "ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS team_code TEXT",
+    """
+    CREATE TABLE IF NOT EXISTS team_licenses (
+        id                     SERIAL PRIMARY KEY,
+        code                   TEXT UNIQUE NOT NULL,
+        stripe_customer_id     TEXT,
+        stripe_subscription_id TEXT,
+        stripe_status          TEXT,
+        company_name           TEXT,
+        contact_email          TEXT,
+        seat_count             INT NOT NULL,
+        seats_used             INT DEFAULT 0,
+        active                 BOOLEAN DEFAULT TRUE,
+        created_at             TIMESTAMPTZ DEFAULT NOW(),
+        updated_at             TIMESTAMPTZ DEFAULT NOW()
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_tl_code ON team_licenses(code)",
 ]
 
 _SEED_ARTICLES = [
@@ -1028,6 +1048,32 @@ def _row_to_dict(row) -> dict:
     return result
 
 
+# ---------- Team-code generation ----------
+_NATO_WORDS = [
+    "ALPHA", "BRAVO", "CHARLIE", "DELTA", "ECHO", "FOXTROT", "GOLF",
+    "HOTEL", "INDIA", "JULIET", "KILO", "LIMA", "MIKE", "NOVEMBER",
+    "OSCAR", "PAPA", "QUEBEC", "ROMEO", "SIERRA", "TANGO", "UNIFORM",
+    "VICTOR", "WHISKEY", "XRAY", "YANKEE", "ZULU",
+]
+_ALPHANUMERIC = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # exclude ambiguous chars (0/O, 1/I)
+
+
+import random as _random
+
+
+async def _generate_team_code(conn) -> str:
+    """Generate a unique SPARTAN-WORD-NC code and verify it is unused in the DB."""
+    for _ in range(20):
+        word   = _random.choice(_NATO_WORDS)
+        digit  = _random.choice("23456789")
+        letter = _random.choice("ABCDEFGHJKLMNPQRSTUVWXYZ")
+        code   = f"SPARTAN-{word}-{digit}{letter}"
+        exists = await conn.fetchval("SELECT 1 FROM team_licenses WHERE code = $1", code)
+        if not exists:
+            return code
+    raise RuntimeError("Could not generate unique team code after 20 attempts")
+
+
 # Rate limiter — 30 AI requests / 60 s per device (or per IP when device unknown)
 _RATE_WINDOW  = 60
 _RATE_MAX     = 30
@@ -1068,7 +1114,7 @@ async def check_subscription(request: Request, device_id_body: Optional[str] = N
     now = datetime.now(timezone.utc)
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT tier, trial_ends_at, stripe_status FROM subscriptions WHERE device_id = $1",
+            "SELECT tier, trial_ends_at, stripe_status, team_code FROM subscriptions WHERE device_id = $1",
             device_id,
         )
         if not row:
@@ -1082,17 +1128,24 @@ async def check_subscription(request: Request, device_id_body: Optional[str] = N
             )
             return  # In trial
 
-    tier         = row["tier"]
-    stripe_status = row["stripe_status"]
-    trial_ends_at = row["trial_ends_at"]
+        tier          = row["tier"]
+        stripe_status = row["stripe_status"]
+        trial_ends_at = row["trial_ends_at"]
+        team_code     = row["team_code"]
 
-    # Active paying subscriber
-    if stripe_status == "active":
-        return
+        # Active paying subscriber
+        if stripe_status == "active":
+            return
 
-    # Team license (extended in next task)
-    if tier == "team":
-        return
+        # Team license — validate the license row is still active
+        if tier == "team" and team_code:
+            tl = await conn.fetchrow(
+                "SELECT active, stripe_status FROM team_licenses WHERE code = $1",
+                team_code,
+            )
+            if tl and tl["active"] and tl["stripe_status"] == "active":
+                return
+            # License revoked or payment lapsed — fall through to 402
 
     # Trial still valid
     if trial_ends_at and trial_ends_at > now:
@@ -2005,21 +2058,37 @@ async def billing_status(session_id: str):
 async def subscription_status(request: Request):
     device_id = request.headers.get("X-Device-ID", "")
     if not device_id or not pool:
-        return {"tier": "none", "trial_ends_at": None, "stripe_status": None, "is_active": True, "trial_hours_left": 0}
+        return {"tier": "none", "trial_ends_at": None, "stripe_status": None, "is_active": True, "trial_hours_left": 0, "company_name": None}
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT tier, trial_ends_at, stripe_status FROM subscriptions WHERE device_id = $1",
+            "SELECT tier, trial_ends_at, stripe_status, team_code FROM subscriptions WHERE device_id = $1",
             device_id,
         )
+        company_name: Optional[str] = None
+        if row and row["team_code"]:
+            tl = await conn.fetchrow(
+                "SELECT company_name, active, stripe_status AS tl_status FROM team_licenses WHERE code = $1",
+                row["team_code"],
+            )
+            if tl:
+                company_name = tl["company_name"]
     if not row:
-        return {"tier": "none", "trial_ends_at": None, "stripe_status": None, "is_active": True, "trial_hours_left": 24}
+        return {"tier": "none", "trial_ends_at": None, "stripe_status": None, "is_active": True, "trial_hours_left": 24, "company_name": None}
     now = datetime.now(timezone.utc)
     tier          = row["tier"]
     stripe_status = row["stripe_status"]
     trial_ends_at = row["trial_ends_at"]
+    team_code     = row["team_code"]
+    team_active   = False
+    if tier == "team" and team_code and pool:
+        async with pool.acquire() as conn2:
+            tl2 = await conn2.fetchrow(
+                "SELECT active, stripe_status FROM team_licenses WHERE code = $1", team_code
+            )
+        team_active = bool(tl2 and tl2["active"] and tl2["stripe_status"] == "active")
     is_active = (
         stripe_status == "active"
-        or tier == "team"
+        or team_active
         or (trial_ends_at is not None and trial_ends_at > now)
     )
     hours_left = 0
@@ -2031,6 +2100,7 @@ async def subscription_status(request: Request):
         "stripe_status": stripe_status,
         "is_active": is_active,
         "trial_hours_left": hours_left,
+        "company_name": company_name,
     }
 
 
@@ -2115,6 +2185,132 @@ async def subscription_portal(request: Request):
     return {"url": portal.url}
 
 
+class TeamCheckoutRequest(BaseModel):
+    seats: int
+    origin_url: Optional[str] = None
+    contact_email: Optional[str] = None
+    company_name: Optional[str] = None
+
+
+@api.post("/subscription/team-checkout")
+async def team_checkout(req: TeamCheckoutRequest, request: Request):
+    if not STRIPE_API_KEY:
+        raise HTTPException(status_code=503, detail="Payments are not configured.")
+    if req.seats == 5 and not STRIPE_TEAM_5_PRICE_ID:
+        raise HTTPException(status_code=503, detail="5-seat team product not configured.")
+    if req.seats == 10 and not STRIPE_TEAM_10_PRICE_ID:
+        raise HTTPException(status_code=503, detail="10-seat team product not configured.")
+    if req.seats not in (5, 10):
+        raise HTTPException(status_code=400, detail="seats must be 5 or 10.")
+    price_id = STRIPE_TEAM_5_PRICE_ID if req.seats == 5 else STRIPE_TEAM_10_PRICE_ID
+    device_id = request.headers.get("X-Device-ID", "")
+    raw_origin = req.origin_url or ""
+    if raw_origin.startswith("http://") or raw_origin.startswith("https://"):
+        http_origin = raw_origin.rstrip("/")
+        success_url = f"{http_origin}/subscription-success"
+        cancel_url  = f"{http_origin}/paywall"
+    else:
+        success_url = "spartan://subscription-success"
+        cancel_url  = "spartan://team-checkout"
+    try:
+        loop = asyncio.get_event_loop()
+        session = await loop.run_in_executor(
+            None,
+            lambda: stripe_lib.checkout.Session.create(
+                mode="subscription",
+                line_items=[{"price": price_id, "quantity": 1}],
+                success_url=success_url,
+                cancel_url=cancel_url,
+                allow_promotion_codes=True,
+                customer_email=req.contact_email or None,
+                metadata={
+                    "source": "spartan_team",
+                    "seat_count": str(req.seats),
+                    "device_id": device_id or "",
+                    "company_name": req.company_name or "",
+                    "contact_email": req.contact_email or "",
+                },
+            ),
+        )
+    except Exception as exc:
+        logger.exception("stripe team checkout failed")
+        raise HTTPException(status_code=502, detail=f"Stripe error: {exc}")
+    return {"url": session.url, "session_id": session.id}
+
+
+class TeamRedeemRequest(BaseModel):
+    team_code: str
+
+
+@api.post("/team/redeem")
+async def team_redeem(req: TeamRedeemRequest, request: Request):
+    if not pool:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+    device_id = request.headers.get("X-Device-ID", "").strip()
+    if not device_id:
+        raise HTTPException(status_code=401, detail="Device identification required.")
+    code = req.team_code.strip().upper()
+    async with pool.acquire() as conn:
+        tl = await conn.fetchrow(
+            "SELECT id, active, stripe_status, seat_count, seats_used, company_name FROM team_licenses WHERE code = $1",
+            code,
+        )
+        if not tl:
+            raise HTTPException(status_code=404, detail="Invalid or expired team code.")
+        if not tl["active"] or tl["stripe_status"] != "active":
+            raise HTTPException(status_code=404, detail="Invalid or expired team code.")
+        if tl["seats_used"] >= tl["seat_count"]:
+            raise HTTPException(status_code=409, detail="All seats on this license are in use.")
+        # Upsert subscription row for this device
+        existing = await conn.fetchrow(
+            "SELECT tier, team_code FROM subscriptions WHERE device_id = $1", device_id
+        )
+        if existing and existing["team_code"] == code:
+            # Already on this team — idempotent, just return success
+            pass
+        else:
+            await conn.execute(
+                """INSERT INTO subscriptions
+                       (device_id, tier, team_code)
+                   VALUES ($1, 'team', $2)
+                   ON CONFLICT (device_id) DO UPDATE SET
+                       tier       = 'team',
+                       team_code  = $2,
+                       stripe_customer_id     = NULL,
+                       stripe_subscription_id = NULL,
+                       stripe_status          = NULL,
+                       updated_at = NOW()""",
+                device_id, code,
+            )
+            await conn.execute(
+                "UPDATE team_licenses SET seats_used = seats_used + 1, updated_at = NOW() WHERE code = $1",
+                code,
+            )
+    seats_remaining = tl["seat_count"] - tl["seats_used"] - 1
+    return {
+        "status": "activated",
+        "company_name": tl["company_name"],
+        "seats_remaining": max(0, seats_remaining),
+    }
+
+
+@api.get("/admin/team-licenses")
+async def admin_team_licenses(authorization: Optional[str] = Header(None)):
+    token = (authorization or "").removeprefix("Bearer ").strip()
+    if token != ADMIN_TOKEN:
+        raise HTTPException(status_code=403, detail="Forbidden.")
+    if not pool:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT id, code, company_name, contact_email, seat_count, seats_used,
+                      stripe_status, active, created_at, updated_at
+               FROM team_licenses ORDER BY created_at DESC"""
+        )
+    items = [_row_to_dict(r) for r in rows]
+    return {"items": items, "count": len(items)}
+
+
 @api.post("/webhook/stripe")
 async def stripe_webhook(request: Request):
     body = await request.body()
@@ -2147,11 +2343,76 @@ async def stripe_webhook(request: Request):
         payment_status = obj.get("payment_status", "paid")
         if obj.get("mode") == "subscription":
             is_subscription_mode = True
-            if pool:
-                device_id   = (obj.get("metadata") or {}).get("device_id", "")
-                customer_id = obj.get("customer")
-                sub_id      = obj.get("subscription")
-                if device_id and customer_id:
+            meta        = obj.get("metadata") or {}
+            source      = meta.get("source", "")
+            device_id   = meta.get("device_id", "")
+            customer_id = obj.get("customer")
+            sub_id      = obj.get("subscription")
+
+            if source == "spartan_team":
+                # ---- Team license purchase ----
+                if pool:
+                    seat_count   = int(meta.get("seat_count", "5") or "5")
+                    company_name = meta.get("company_name", "") or None
+                    contact_email = meta.get("contact_email", "") or None
+                    try:
+                        async with pool.acquire() as conn:
+                            code = await _generate_team_code(conn)
+                            await conn.execute(
+                                """INSERT INTO team_licenses
+                                       (code, stripe_customer_id, stripe_subscription_id,
+                                        stripe_status, company_name, contact_email, seat_count)
+                                   VALUES ($1, $2, $3, 'active', $4, $5, $6)""",
+                                code, customer_id, sub_id,
+                                company_name, contact_email, seat_count,
+                            )
+                        logger.info("team license created: code=%s seats=%d customer=%s", code, seat_count, customer_id)
+                        # Send email to purchaser
+                        if RESEND_API_KEY and contact_email:
+                            display_company = company_name or "your organization"
+                            body_html = f"""
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#0a0a0b;color:#e5e5e5;padding:40px 24px;max-width:600px;margin:0 auto;">
+  <p style="font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#ef4444;margin:0 0 16px;">Spartan Coaching</p>
+  <h1 style="font-size:28px;font-weight:800;color:#fff;margin:0 0 8px;">Your team license is active</h1>
+  <p style="color:#a3a3ad;margin:0 0 32px;">Purchased for {display_company} · {seat_count} seats</p>
+
+  <div style="background:#141417;border:1px solid #26262c;border-radius:16px;padding:32px;margin-bottom:28px;text-align:center;">
+    <p style="font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#a3a3ad;margin:0 0 12px;">Team Access Code</p>
+    <p style="font-size:32px;font-weight:900;letter-spacing:4px;color:#ef4444;margin:0;font-family:monospace;">{code}</p>
+    <p style="font-size:13px;color:#71717a;margin:12px 0 0;">Share this code with your team</p>
+  </div>
+
+  <h2 style="font-size:17px;font-weight:700;color:#fff;margin:0 0 12px;">How your reps redeem it</h2>
+  <ol style="color:#a3a3ad;padding-left:20px;line-height:1.8;margin:0 0 28px;">
+    <li>Download the <strong style="color:#e5e5e5;">Spartan Coaching</strong> app</li>
+    <li>Open <strong style="color:#e5e5e5;">Settings</strong></li>
+    <li>Tap <strong style="color:#e5e5e5;">"Have a team code?"</strong></li>
+    <li>Enter <strong style="color:#ef4444;font-family:monospace;">{code}</strong> and tap <strong style="color:#e5e5e5;">Redeem</strong></li>
+  </ol>
+  <p style="color:#a3a3ad;font-size:13px;">Each rep redeems the code once. You have <strong style="color:#e5e5e5;">{seat_count} seats</strong> available.</p>
+
+  <hr style="border:none;border-top:1px solid #26262c;margin:28px 0;"/>
+  <p style="font-size:12px;color:#52525b;margin:0;">Questions? Reply to this email or reach out to <a href="mailto:nick@spartanhospicecoaching.com" style="color:#ef4444;">nick@spartanhospicecoaching.com</a></p>
+</div>"""
+                            try:
+                                loop2 = asyncio.get_event_loop()
+                                await loop2.run_in_executor(
+                                    None,
+                                    lambda: resend.Emails.send({
+                                        "from": f"{RESEND_FROM_NAME} <{RESEND_FROM_EMAIL}>",
+                                        "to": [contact_email],
+                                        "subject": "Your Spartan Coaching team license is active",
+                                        "html": body_html,
+                                    }),
+                                )
+                                logger.info("team license email sent to %s", contact_email)
+                            except Exception as email_exc:
+                                logger.error("team license email failed: %s", email_exc)
+                    except Exception as team_exc:
+                        logger.exception("team license creation failed: %s", team_exc)
+            else:
+                # ---- Individual Pro subscription ----
+                if device_id and customer_id and pool:
                     async with pool.acquire() as conn:
                         await conn.execute(
                             """INSERT INTO subscriptions

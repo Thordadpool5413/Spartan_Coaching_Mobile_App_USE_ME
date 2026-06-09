@@ -401,3 +401,30 @@ export async function getPortalUrl(): Promise<{ url: string }> {
   const { data } = await api.get('/subscription/portal');
   return data as { url: string };
 }
+
+export async function createTeamCheckoutSession(seats: 5 | 10, originUrl: string): Promise<{ url: string; session_id: string }> {
+  const { data } = await api.post('/subscription/team-checkout', { seats, origin_url: originUrl });
+  return data as { url: string; session_id: string };
+}
+
+export async function redeemTeamCodeApi(teamCode: string): Promise<{ company_name: string; seats_remaining: number }> {
+  const { data } = await api.post('/team/redeem', { team_code: teamCode.trim().toUpperCase() });
+  return data as { company_name: string; seats_remaining: number };
+}
+
+export type TeamLicense = {
+  id: number;
+  code: string;
+  company_name: string | null;
+  contact_email: string | null;
+  seat_count: number;
+  seats_used: number;
+  stripe_status: string | null;
+  active: boolean;
+  created_at: string;
+};
+
+export async function adminTeamLicenses(token: string): Promise<{ items: TeamLicense[]; count: number }> {
+  const { data } = await api.get('/admin/team-licenses', { headers: { Authorization: `Bearer ${token}` } });
+  return data as { items: TeamLicense[]; count: number };
+}
