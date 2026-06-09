@@ -6,6 +6,10 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -13,9 +17,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as WebBrowser from 'expo-web-browser';
 import Constants from 'expo-constants';
-import { Platform } from 'react-native';
-import { palette, spacing, radius, typography } from '../theme';
-import { Card, PrimaryButton, GhostButton, H1, H2, H3, Body, Small, SectionLabel } from '../components/UI';
+import { palette, radius, spacing } from '../theme';
+import { Card, PrimaryButton, GhostButton, H1, H3, Body, Small, SectionLabel } from '../components/UI';
 import { createTeamCheckout } from '../lib/subscription';
 
 const TIERS = [
@@ -64,18 +67,37 @@ function resolveOrigin(): string {
 
 export default function TeamCheckoutScreen() {
   const router = useRouter();
-  const [busy, setBusy] = useState<null | 5 | 10>(null);
+  const [pendingSeats, setPendingSeats] = useState<null | 5 | 10>(null);
+  const [busy, setBusy] = useState(false);
 
-  const handleSelect = async (seats: 5 | 10) => {
-    setBusy(seats);
+  // Pre-checkout form state
+  const [companyName, setCompanyName] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [formError, setFormError] = useState('');
+
+  const handleSelect = (seats: 5 | 10) => {
+    setFormError('');
+    setPendingSeats(seats);
+  };
+
+  const handleConfirm = async () => {
+    const company = companyName.trim();
+    const email = contactEmail.trim();
+    if (!company) { setFormError('Please enter your company or organization name.'); return; }
+    if (!email || !email.includes('@')) { setFormError('Please enter a valid email address.'); return; }
+    if (!pendingSeats) return;
+
+    setBusy(true);
+    setFormError('');
     try {
       const origin = resolveOrigin();
-      const url = await createTeamCheckout(seats, origin);
+      const url = await createTeamCheckout(pendingSeats, origin, company, email);
+      setPendingSeats(null);
       await WebBrowser.openBrowserAsync(url);
     } catch (err: any) {
-      Alert.alert('Error', err?.response?.data?.detail || 'Could not open checkout. Please try again.');
+      setFormError(err?.response?.data?.detail || 'Could not open checkout. Please try again.');
     } finally {
-      setBusy(null);
+      setBusy(false);
     }
   };
 
@@ -146,14 +168,9 @@ export default function TeamCheckoutScreen() {
               </View>
 
               <PrimaryButton
-                label={busy === tier.seats ? 'Opening checkout…' : `Get ${tier.seats} Seats — ${tier.price}/mo`}
-                disabled={busy !== null}
+                label={`Get ${tier.seats} Seats — ${tier.price}/mo`}
                 onPress={() => handleSelect(tier.seats)}
-                icon={
-                  busy === tier.seats
-                    ? <ActivityIndicator color="#fff" size="small" />
-                    : <Ionicons name="open-outline" size={14} color="#fff" />
-                }
+                icon={<Ionicons name="open-outline" size={14} color="#fff" />}
                 style={!tier.highlight ? styles.ghostLike : undefined}
               />
             </Card>
@@ -188,6 +205,89 @@ export default function TeamCheckoutScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Pre-checkout form modal */}
+      <Modal
+        visible={pendingSeats !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => { if (!busy) setPendingSeats(null); }}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <Pressable
+            style={styles.modalOverlay}
+            onPress={() => { if (!busy) setPendingSeats(null); }}
+          >
+            <Pressable style={styles.modalSheet} onPress={() => {}}>
+              <View style={styles.modalHandle} />
+
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: spacing.s }}>
+                <View style={styles.modalIcon}>
+                  <Ionicons name="people-outline" size={20} color={palette.primary} />
+                </View>
+                <View>
+                  <H3 style={{ fontSize: 16 }}>Almost there</H3>
+                  <Small dim>
+                    {pendingSeats}-seat license · {pendingSeats === 5 ? '$149' : '$249'}/month
+                  </Small>
+                </View>
+              </View>
+
+              <Body dim style={{ marginBottom: spacing.l, lineHeight: 22, fontSize: 13 }}>
+                We'll email your team code to this address immediately after payment.
+              </Body>
+
+              <Small style={styles.fieldLabel}>Company / Organization name</Small>
+              <TextInput
+                style={styles.input}
+                placeholder="Acme Hospice"
+                placeholderTextColor={palette.textMuted}
+                value={companyName}
+                onChangeText={setCompanyName}
+                autoCapitalize="words"
+                returnKeyType="next"
+              />
+
+              <Small style={[styles.fieldLabel, { marginTop: spacing.m }]}>Email for your team code</Small>
+              <TextInput
+                style={styles.input}
+                placeholder="you@company.com"
+                placeholderTextColor={palette.textMuted}
+                value={contactEmail}
+                onChangeText={setContactEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                returnKeyType="done"
+                onSubmitEditing={handleConfirm}
+              />
+
+              {formError ? (
+                <Small style={{ color: palette.error || palette.primary, marginTop: spacing.s }}>{formError}</Small>
+              ) : null}
+
+              <View style={{ gap: spacing.s, marginTop: spacing.l }}>
+                <PrimaryButton
+                  label={busy ? 'Opening checkout…' : 'Continue to Checkout'}
+                  onPress={handleConfirm}
+                  disabled={busy}
+                  icon={
+                    busy
+                      ? <ActivityIndicator color="#fff" size="small" />
+                      : <Ionicons name="open-outline" size={14} color="#fff" />
+                  }
+                />
+                <GhostButton
+                  label="Cancel"
+                  onPress={() => { if (!busy) setPendingSeats(null); }}
+                />
+              </View>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -245,5 +345,55 @@ const styles = StyleSheet.create({
   },
   ghostLike: {
     backgroundColor: palette.bgElev2,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: palette.bgElev1,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: spacing.l,
+    paddingBottom: 40,
+    borderTopWidth: 1,
+    borderColor: palette.cardBorder,
+  },
+  modalHandle: {
+    width: 36,
+    height: 4,
+    backgroundColor: palette.bgElev3,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: spacing.l,
+  },
+  modalIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: palette.primaryTint,
+    borderWidth: 1,
+    borderColor: palette.primary + '30',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fieldLabel: {
+    color: palette.textDim,
+    marginBottom: 6,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  input: {
+    backgroundColor: palette.bgElev2,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: palette.cardBorder,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: palette.text,
+    fontSize: 16,
   },
 });

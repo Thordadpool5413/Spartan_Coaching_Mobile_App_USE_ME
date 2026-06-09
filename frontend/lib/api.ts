@@ -402,8 +402,18 @@ export async function getPortalUrl(): Promise<{ url: string }> {
   return data as { url: string };
 }
 
-export async function createTeamCheckoutSession(seats: 5 | 10, originUrl: string): Promise<{ url: string; session_id: string }> {
-  const { data } = await api.post('/subscription/team-checkout', { seats, origin_url: originUrl });
+export async function createTeamCheckoutSession(
+  seats: 5 | 10,
+  originUrl: string,
+  companyName?: string,
+  contactEmail?: string,
+): Promise<{ url: string; session_id: string }> {
+  const { data } = await api.post('/subscription/team-checkout', {
+    seats,
+    origin_url: originUrl,
+    company_name: companyName || undefined,
+    contact_email: contactEmail || undefined,
+  });
   return data as { url: string; session_id: string };
 }
 

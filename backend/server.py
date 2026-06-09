@@ -2251,42 +2251,57 @@ async def team_redeem(req: TeamRedeemRequest, request: Request):
         raise HTTPException(status_code=401, detail="Device identification required.")
     code = req.team_code.strip().upper()
     async with pool.acquire() as conn:
+        # Verify license exists and is valid before attempting claim
         tl = await conn.fetchrow(
-            "SELECT id, active, stripe_status, seat_count, seats_used, company_name FROM team_licenses WHERE code = $1",
+            "SELECT id, active, stripe_status, seat_count, company_name FROM team_licenses WHERE code = $1",
             code,
         )
         if not tl:
             raise HTTPException(status_code=404, detail="Invalid or expired team code.")
         if not tl["active"] or tl["stripe_status"] != "active":
             raise HTTPException(status_code=404, detail="Invalid or expired team code.")
-        if tl["seats_used"] >= tl["seat_count"]:
-            raise HTTPException(status_code=409, detail="All seats on this license are in use.")
-        # Upsert subscription row for this device
+
+        # Check if device already redeemed this exact code — idempotent
         existing = await conn.fetchrow(
-            "SELECT tier, team_code FROM subscriptions WHERE device_id = $1", device_id
+            "SELECT team_code FROM subscriptions WHERE device_id = $1", device_id
         )
         if existing and existing["team_code"] == code:
-            # Already on this team — idempotent, just return success
-            pass
-        else:
-            await conn.execute(
-                """INSERT INTO subscriptions
-                       (device_id, tier, team_code)
-                   VALUES ($1, 'team', $2)
-                   ON CONFLICT (device_id) DO UPDATE SET
-                       tier       = 'team',
-                       team_code  = $2,
-                       stripe_customer_id     = NULL,
-                       stripe_subscription_id = NULL,
-                       stripe_status          = NULL,
-                       updated_at = NOW()""",
-                device_id, code,
+            # Re-fetch seat count to return accurate seats_remaining
+            tl2 = await conn.fetchrow(
+                "SELECT seat_count, seats_used FROM team_licenses WHERE code = $1", code
             )
-            await conn.execute(
-                "UPDATE team_licenses SET seats_used = seats_used + 1, updated_at = NOW() WHERE code = $1",
-                code,
-            )
-    seats_remaining = tl["seat_count"] - tl["seats_used"] - 1
+            return {
+                "status": "activated",
+                "company_name": tl["company_name"],
+                "seats_remaining": max(0, tl2["seat_count"] - tl2["seats_used"]),
+            }
+
+        # Atomic seat claim: only succeeds if seats_used < seat_count (prevents race oversubscription)
+        claimed = await conn.fetchrow(
+            """UPDATE team_licenses
+               SET seats_used = seats_used + 1, updated_at = NOW()
+               WHERE code = $1 AND seats_used < seat_count
+               RETURNING seat_count, seats_used""",
+            code,
+        )
+        if not claimed:
+            raise HTTPException(status_code=409, detail="All seats on this license are in use.")
+
+        # Upsert subscription row for this device
+        await conn.execute(
+            """INSERT INTO subscriptions
+                   (device_id, tier, team_code)
+               VALUES ($1, 'team', $2)
+               ON CONFLICT (device_id) DO UPDATE SET
+                   tier                   = 'team',
+                   team_code              = $2,
+                   stripe_customer_id     = NULL,
+                   stripe_subscription_id = NULL,
+                   stripe_status          = NULL,
+                   updated_at             = NOW()""",
+            device_id, code,
+        )
+    seats_remaining = claimed["seat_count"] - claimed["seats_used"]
     return {
         "status": "activated",
         "company_name": tl["company_name"],
@@ -2353,8 +2368,13 @@ async def stripe_webhook(request: Request):
                 # ---- Team license purchase ----
                 if pool:
                     seat_count   = int(meta.get("seat_count", "5") or "5")
-                    company_name = meta.get("company_name", "") or None
-                    contact_email = meta.get("contact_email", "") or None
+                    company_name = meta.get("company_name", "") or obj.get("customer_details", {}).get("name") or None
+                    # Prefer explicit metadata email; fall back to Stripe customer_details
+                    contact_email = (
+                        meta.get("contact_email", "")
+                        or obj.get("customer_details", {}).get("email")
+                        or None
+                    )
                     try:
                         async with pool.acquire() as conn:
                             code = await _generate_team_code(conn)
@@ -2441,6 +2461,15 @@ async def stripe_webhook(request: Request):
                     "UPDATE subscriptions SET stripe_status = $1, updated_at = NOW() WHERE stripe_subscription_id = $2",
                     status, sub_id,
                 )
+                # Keep team_licenses in sync — deactivate on past_due / unpaid etc.
+                await conn.execute(
+                    """UPDATE team_licenses
+                       SET stripe_status = $1,
+                           active = (CASE WHEN $1 = 'active' THEN true ELSE false END),
+                           updated_at = NOW()
+                       WHERE stripe_subscription_id = $2""",
+                    status, sub_id,
+                )
             logger.info("subscription updated: sub=%s status=%s", sub_id, status)
     elif event_type == "customer.subscription.deleted":
         obj    = event["data"]["object"]
@@ -2449,6 +2478,13 @@ async def stripe_webhook(request: Request):
             async with pool.acquire() as conn:
                 await conn.execute(
                     "UPDATE subscriptions SET stripe_status = 'canceled', updated_at = NOW() WHERE stripe_subscription_id = $1",
+                    sub_id,
+                )
+                # Revoke team license — existing redeemed seats also lose access via check_subscription
+                await conn.execute(
+                    """UPDATE team_licenses
+                       SET stripe_status = 'canceled', active = false, updated_at = NOW()
+                       WHERE stripe_subscription_id = $1""",
                     sub_id,
                 )
             logger.info("subscription canceled: sub=%s", sub_id)
