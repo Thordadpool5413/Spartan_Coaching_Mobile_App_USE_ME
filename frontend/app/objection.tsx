@@ -7,6 +7,7 @@ import { palette, radius, spacing } from '../theme';
 import { Card, PrimaryButton, GhostButton, H2, Body, Small, SectionLabel, PhiNotice } from '../components/UI';
 import { getObjectionResponse } from '../lib/api';
 import { markdownStyles } from '../components/markdownStyles';
+import PaywallGate from '../components/PaywallGate';
 
 const PRESETS = [
   'We already have a hospice provider.',
@@ -37,6 +38,7 @@ export default function ObjectionScreen() {
   };
 
   return (
+    <PaywallGate feature="Objection Handler">
     <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
       <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 100 }}>
         <SectionLabel>AI Tool</SectionLabel>
@@ -100,6 +102,7 @@ export default function ObjectionScreen() {
         )}
       </ScrollView>
     </SafeAreaView>
+    </PaywallGate>
   );
 }
 

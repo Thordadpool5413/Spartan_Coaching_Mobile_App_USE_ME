@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, View, Switch, Pressable, StyleSheet, Platform, Alert } from 'react-native';
+import { ScrollView, View, Switch, Pressable, StyleSheet, Platform, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as WebBrowser from 'expo-web-browser';
 import { palette, radius, spacing } from '../theme';
 import { Card, PrimaryButton, GhostButton, H1, H2, H3, Body, Small, SectionLabel } from '../components/UI';
 import {
@@ -14,6 +15,7 @@ import {
   cancelDailyDrillReminder,
   NotifSettings,
 } from '../lib/notifications';
+import { useSubscription, getSubscriptionPortalUrl, createSubscriptionCheckout, invalidateSubscriptionCache, fetchSubscriptionStatus } from '../lib/subscription';
 
 const TIME_OPTIONS = [
   { h: 6, m: 0, label: '6:00 AM' },
@@ -32,6 +34,8 @@ export default function SettingsScreen() {
   const [settings, setSettings] = useState<NotifSettings>({ enabled: false, hour: 8, minute: 0 });
   const [busy, setBusy] = useState(false);
   const [permDenied, setPermDenied] = useState(false);
+  const { tier, isActive, trialHoursLeft, stripeStatus, refresh: refreshSub } = useSubscription();
+  const [subBusy, setSubBusy] = useState(false);
 
   useEffect(() => {
     getNotifSettings().then(setSettings);
@@ -163,6 +167,61 @@ export default function SettingsScreen() {
         ) : null}
 
         <View style={{ marginTop: spacing.xxl }}>
+          <SectionLabel>Subscription</SectionLabel>
+          <Card style={{ marginBottom: spacing.m }}>
+            <View style={styles.toggleRow}>
+              <LinearGradient
+                colors={isActive ? [palette.primary, palette.primaryDark] : [palette.bgElev3, palette.bgElev3]}
+                style={styles.subIcon}
+              >
+                <Ionicons name={isActive ? 'sparkles' : 'lock-closed-outline'} size={18} color="#fff" />
+              </LinearGradient>
+              <View style={{ flex: 1 }}>
+                <H3 style={{ fontSize: 16 }}>
+                  {stripeStatus === 'active' ? 'Spartan Pro' : tier === 'trial' && isActive ? 'Free Trial' : 'Trial Ended'}
+                </H3>
+                <Small dim>
+                  {stripeStatus === 'active'
+                    ? 'Active · $39.99/month'
+                    : tier === 'trial' && isActive
+                    ? `${trialHoursLeft}h left in free trial`
+                    : 'Subscribe to unlock AI coaching'}
+                </Small>
+              </View>
+            </View>
+
+            <View style={{ marginTop: spacing.l, gap: spacing.s }}>
+              {stripeStatus === 'active' ? (
+                <PrimaryButton
+                  label={subBusy ? 'Opening…' : 'Manage Subscription'}
+                  disabled={subBusy}
+                  onPress={async () => {
+                    setSubBusy(true);
+                    try {
+                      const url = await getSubscriptionPortalUrl();
+                      await WebBrowser.openBrowserAsync(url);
+                      refreshSub();
+                    } catch {
+                      Alert.alert('Error', 'Could not open subscription portal. Please try again.');
+                    } finally {
+                      setSubBusy(false);
+                    }
+                  }}
+                  icon={subBusy ? <ActivityIndicator color="#fff" size="small" /> : <Ionicons name="open-outline" size={14} color="#fff" />}
+                />
+              ) : (
+                <PrimaryButton
+                  label={subBusy ? 'Opening…' : 'Unlock Pro — $39.99/mo'}
+                  disabled={subBusy}
+                  onPress={() => router.push('/paywall' as any)}
+                  icon={<Ionicons name="sparkles" size={14} color="#fff" />}
+                />
+              )}
+            </View>
+          </Card>
+        </View>
+
+        <View style={{ marginTop: spacing.xxl }}>
           <SectionLabel>About this app</SectionLabel>
           <Card style={{ marginBottom: spacing.m }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -192,6 +251,11 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  subIcon: {
+    width: 40, height: 40, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+    marginRight: 4,
+  },
   iconWrap: {
     width: 40, height: 40, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center',

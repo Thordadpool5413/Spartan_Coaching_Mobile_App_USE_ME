@@ -7,6 +7,7 @@ import { palette, radius, spacing } from '../theme';
 import { Card, PrimaryButton, GhostButton, H2, Body, Small, SectionLabel, Pill, PhiNotice } from '../components/UI';
 import { getPlaybook } from '../lib/api';
 import { markdownStyles } from '../components/markdownStyles';
+import PaywallGate from '../components/PaywallGate';
 
 const SOURCES = ['SNF', 'Hospital', 'Home Health', 'Assisted Living', 'Physician Office', 'Community'];
 
@@ -32,6 +33,7 @@ export default function PlaybookScreen() {
   };
 
   return (
+    <PaywallGate feature="Sales Playbook Generator">
     <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
       <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 100 }}>
         <SectionLabel>AI Tool</SectionLabel>
@@ -104,6 +106,7 @@ export default function PlaybookScreen() {
         )}
       </ScrollView>
     </SafeAreaView>
+    </PaywallGate>
   );
 }
 

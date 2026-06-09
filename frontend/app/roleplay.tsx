@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { palette, radius, spacing } from '../theme';
 import { Card, H2, H3, Body, Small, SectionLabel } from '../components/UI';
 import { getRoleplayScenarios, Scenario } from '../lib/api';
+import PaywallGate from '../components/PaywallGate';
 
 export default function RoleplayIndex() {
   const router = useRouter();
@@ -20,6 +21,7 @@ export default function RoleplayIndex() {
   }, []);
 
   return (
+    <PaywallGate feature="Role-Play Practice">
     <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
       <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }}>
         <SectionLabel>AI Practice</SectionLabel>
@@ -57,6 +59,7 @@ export default function RoleplayIndex() {
         ))}
       </ScrollView>
     </SafeAreaView>
+    </PaywallGate>
   );
 }
 
