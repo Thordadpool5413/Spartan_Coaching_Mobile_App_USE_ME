@@ -5,7 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
 import { palette, radius, spacing } from '../theme';
-import { Card, PrimaryButton, GhostButton, H2, H3, Body, Small, SectionLabel } from '../components/UI';
+import { Card, PrimaryButton, GhostButton, H2, H3, Body, Small, SectionLabel, PhiNotice } from '../components/UI';
 import { roleplayTurn, roleplayFeedback, ChatHistoryItem } from '../lib/api';
 import { markdownStyles } from '../components/markdownStyles';
 
@@ -132,6 +132,7 @@ export default function RoleplaySession() {
           )}
         </ScrollView>
 
+        <PhiNotice style={styles.phiRow} />
         <View style={styles.composer}>
           <TextInput
             testID="rp-input"
@@ -196,9 +197,18 @@ const styles = StyleSheet.create({
   bubble: { maxWidth: '88%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: radius.lg },
   bubbleUser: { alignSelf: 'flex-end', backgroundColor: palette.primary, borderBottomRightRadius: 4 },
   bubbleModel: { alignSelf: 'flex-start', backgroundColor: palette.bgElev2, borderWidth: 1, borderColor: palette.cardBorder, borderBottomLeftRadius: 4 },
+  phiRow: {
+    paddingHorizontal: spacing.m,
+    paddingTop: spacing.s,
+    paddingBottom: 2,
+    borderTopWidth: 1,
+    borderColor: palette.divider,
+    backgroundColor: palette.bgElev1,
+  },
   composer: {
-    flexDirection: 'row', alignItems: 'flex-end', padding: spacing.m, gap: 8,
-    borderTopWidth: 1, borderColor: palette.divider, backgroundColor: palette.bgElev1,
+    flexDirection: 'row', alignItems: 'flex-end',
+    paddingHorizontal: spacing.m, paddingBottom: spacing.m, paddingTop: 6, gap: 8,
+    backgroundColor: palette.bgElev1,
   },
   input: {
     flex: 1, backgroundColor: palette.bgElev2, borderColor: palette.cardBorder, borderWidth: 1,

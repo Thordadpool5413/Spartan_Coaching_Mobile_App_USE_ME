@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
 import { palette, radius, spacing } from '../theme';
-import { Card, PrimaryButton, GhostButton, H2, Body, Small, SectionLabel } from '../components/UI';
+import { Card, PrimaryButton, GhostButton, H2, Body, Small, SectionLabel, PhiNotice } from '../components/UI';
 import { getObjectionResponse } from '../lib/api';
 import { markdownStyles } from '../components/markdownStyles';
 
@@ -82,6 +82,7 @@ export default function ObjectionScreen() {
           multiline
         />
 
+        <PhiNotice />
         <PrimaryButton
           testID="objection-submit"
           label={loading ? 'Coaching…' : 'Get responses'}
