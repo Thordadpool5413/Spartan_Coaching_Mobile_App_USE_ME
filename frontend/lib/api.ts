@@ -1,14 +1,15 @@
 import axios from 'axios';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 /**
  * Resolve the backend base URL at REQUEST time (not module-init).
  *
- * - Web (dev preview & production): use same-origin `/api` so the Kubernetes ingress /
- *   Render routes the call to the right FastAPI service. This lets the preview environment
- *   exercise the locally-running backend with the latest code (including unreleased changes).
- * - Native (iOS/Android builds via Expo): fall back to the explicit production backend URL
- *   from EXPO_PUBLIC_BACKEND_URL since the app has no web origin.
+ * - Web: same-origin so the proxy routes the call to the locally-running backend.
+ * - Native: reads from (in order of precedence):
+ *     1. app.config.js extra.backendUrl  (injected at EAS build time from EXPO_PUBLIC_BACKEND_URL)
+ *     2. EXPO_PUBLIC_BACKEND_URL         (Metro dev builds)
+ *   If neither is set the URL is empty; the backend must be reachable another way.
  *
  * Lazy resolution avoids the Metro-bundle-stale gotcha — every axios call recomputes the
  * URL through the interceptor, so hot-reloads always pick up the new value.
@@ -18,7 +19,9 @@ function resolveBackendUrl(): string {
     return window.location.origin;
   }
   return (
-    process.env.EXPO_PUBLIC_BACKEND_URL || 'https://spartan-coaching-api.onrender.com'
+    (Constants.expoConfig?.extra?.backendUrl as string | undefined) ||
+    process.env.EXPO_PUBLIC_BACKEND_URL ||
+    ''
   );
 }
 
@@ -40,8 +43,8 @@ export async function askSpartan(question: string) {
   return data.response as string;
 }
 
-export async function chatWithCoach(prompt: string, history: ChatHistoryItem[]) {
-  const { data } = await api.post('/chat', { prompt, conversationHistory: history });
+export async function chatWithCoach(prompt: string, history: ChatHistoryItem[], deviceId?: string) {
+  const { data } = await api.post('/chat', { prompt, conversationHistory: history, ...(deviceId ? { deviceId } : {}) });
   return data.response as string;
 }
 
