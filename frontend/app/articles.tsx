@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { ScrollView, View, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
-import * as WebBrowser from 'expo-web-browser';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { palette, radius, spacing } from '../theme';
 import { Card, H1, H3, Body, Small, SectionLabel } from '../components/UI';
 import { getArticles, Article } from '../lib/api';
 
 export default function ArticlesScreen() {
+  const router = useRouter();
   const [items, setItems] = useState<Article[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => {
@@ -27,7 +28,7 @@ export default function ArticlesScreen() {
           <Pressable
             key={a.id}
             testID={`article-${a.id}`}
-            onPress={() => WebBrowser.openBrowserAsync(a.linkedinUrl)}
+            onPress={() => router.push({ pathname: '/article-detail', params: { id: a.id } })}
             style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1, marginBottom: spacing.m })}
           >
             <Card>
@@ -40,9 +41,8 @@ export default function ArticlesScreen() {
               <H3 style={{ marginBottom: spacing.s }}>{a.title}</H3>
               <Body dim style={{ fontSize: 14, marginBottom: spacing.s }}>{a.description}</Body>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Ionicons name="logo-linkedin" size={14} color={palette.primary} />
-                <Small style={{ color: palette.primary, fontWeight: '700' }}>Read on LinkedIn</Small>
-                <Ionicons name="open-outline" size={12} color={palette.primary} />
+                <Small style={{ color: palette.primary, fontWeight: '700' }}>Read Article</Small>
+                <Ionicons name="chevron-forward" size={13} color={palette.primary} />
               </View>
             </Card>
           </Pressable>
