@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { View, Text, TextInput, ScrollView, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
 import { palette, radius, spacing } from '../theme';
@@ -13,6 +13,10 @@ export default function ChatScreen() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  // Dynamic offset: safe-area top (status bar + notch) + standard iOS nav-bar height (44pt).
+  // This keeps the input above the keyboard on SE, 14, 16 Pro Max, and all other models.
+  const insets = useSafeAreaInsets();
+  const keyboardOffset = insets.top + 44;
 
   const send = async () => {
     if (!input.trim() || loading) return;
@@ -38,7 +42,7 @@ export default function ChatScreen() {
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
-        keyboardVerticalOffset={90}
+        keyboardVerticalOffset={keyboardOffset}
       >
         <ScrollView ref={scrollRef} contentContainerStyle={{ padding: spacing.l, paddingBottom: 20, gap: spacing.m }}>
           {messages.length === 0 && (
@@ -55,7 +59,7 @@ export default function ChatScreen() {
 
           {messages.map((m, i) => (
             <View
-              key={i}
+              key={`${i}-${m.role}`}
               testID={`msg-${i}`}
               style={[styles.bubble, m.role === 'user' ? styles.bubbleUser : styles.bubbleModel]}
             >

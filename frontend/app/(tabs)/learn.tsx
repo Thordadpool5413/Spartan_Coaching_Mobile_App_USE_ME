@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { palette, radius, spacing } from '../../theme';
-import { H1, H3, Body, Small, SectionLabel, Card } from '../../components/UI';
+import { H1, H3, Body, Small, SectionLabel, Card, GhostButton } from '../../components/UI';
 
 const ITEMS = [
   { route: '/knowledge', icon: 'library' as const, title: 'Knowledge Base', desc: '40+ entries: eligibility, regulations, levels of care, compliance, sales terms.' },
@@ -69,6 +69,11 @@ export default function LearnTab() {
             <Body dim>{a.excerpt}</Body>
           </Card>
         ))}
+        <GhostButton
+          label="Read all articles on LinkedIn →"
+          onPress={() => router.push('/articles' as any)}
+          style={{ marginTop: spacing.s }}
+        />
       </ScrollView>
     </SafeAreaView>
   );
