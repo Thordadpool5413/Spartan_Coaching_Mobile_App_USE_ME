@@ -899,11 +899,18 @@ async def billing_checkout(req: CheckoutRequest, request: Request):
     pkg = COACHING_PACKAGES.get(req.package_id)
     if not pkg:
         raise HTTPException(status_code=400, detail="Unknown package.")
-    origin = (req.origin_url or "").rstrip("/")
-    if not origin.startswith("http"):
+    raw_origin = (req.origin_url or "").rstrip("/")
+    if raw_origin.startswith("http"):
+        # Web: standard https:// or http:// origin
+        success_url = f"{raw_origin}/payment-success?session_id={{CHECKOUT_SESSION_ID}}"
+        cancel_url  = f"{raw_origin}/services"
+    elif "://" in raw_origin:
+        # Native: custom deep-link scheme, e.g. spartan://
+        scheme = raw_origin.split("://")[0]
+        success_url = f"{scheme}://payment-success?session_id={{CHECKOUT_SESSION_ID}}"
+        cancel_url  = f"{scheme}://services"
+    else:
         raise HTTPException(status_code=400, detail="Invalid origin_url.")
-    success_url = f"{origin}/payment-success?session_id={{CHECKOUT_SESSION_ID}}"
-    cancel_url  = f"{origin}/services"
     metadata = {
         "package_id":     req.package_id,
         "package_name":   pkg["name"],

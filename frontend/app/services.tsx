@@ -287,23 +287,29 @@ export default function ServicesScreen() {
     }
     setSubmitting(true);
     try {
-      const origin =
-        typeof window !== 'undefined' && window.location
-          ? window.location.origin
-          : (process.env.EXPO_PUBLIC_APP_ORIGIN || '');
-      const { url } = await createCheckout({
+      const isWeb = Platform.OS === 'web' && typeof window !== 'undefined' && !!window.location;
+      const origin = isWeb ? window.location.origin : 'spartan://';
+      const { url, session_id } = await createCheckout({
         package_id: bookPkg,
         origin_url: origin,
         customer_name: bookForm.name,
         customer_email: bookForm.email,
         notes: bookForm.notes,
       });
-      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      if (isWeb) {
         window.location.href = url;
       } else {
-        const { Linking } = await import('react-native');
-        Linking.openURL(url);
         setBookOpen(false);
+        const WebBrowser = await import('expo-web-browser');
+        const result = await WebBrowser.openAuthSessionAsync(url, 'spartan://payment-success');
+        if (result.type === 'success' && result.url) {
+          // Parse session_id from the redirect URL spartan://payment-success?session_id=...
+          const parsed = new URL(result.url);
+          const sid = parsed.searchParams.get('session_id') || session_id;
+          router.push({ pathname: '/payment-success', params: { session_id: sid } } as any);
+        } else if (result.type === 'cancel' || result.type === 'dismiss') {
+          // User closed the browser without paying — do nothing, stay on current screen
+        }
       }
     } catch (e: any) {
       Alert.alert(
