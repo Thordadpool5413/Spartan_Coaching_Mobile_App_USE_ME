@@ -19,6 +19,7 @@ load_dotenv()
 
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field, EmailStr
 
 import asyncpg
@@ -87,6 +88,156 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+_PRIVACY_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — Spartan Coaching</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #0d0d0d;
+      color: #e5e5e5;
+      line-height: 1.7;
+      padding: 2rem 1rem 4rem;
+    }
+    .container { max-width: 720px; margin: 0 auto; }
+    header { margin-bottom: 2.5rem; }
+    header .brand { font-size: 0.85rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #f97316; margin-bottom: 0.75rem; }
+    h1 { font-size: 2rem; font-weight: 700; color: #fff; margin-bottom: 0.5rem; }
+    .subtitle { color: #999; font-size: 0.9rem; }
+    section { margin-bottom: 2rem; }
+    h2 { font-size: 1.1rem; font-weight: 600; color: #fff; margin-bottom: 0.75rem; padding-bottom: 0.4rem; border-bottom: 1px solid #222; }
+    p { color: #ccc; margin-bottom: 0.75rem; }
+    ul { list-style: none; padding: 0; }
+    ul li { color: #ccc; padding: 0.35rem 0 0.35rem 1.4rem; position: relative; }
+    ul li::before { content: "✓"; position: absolute; left: 0; color: #f97316; font-size: 0.85rem; }
+    a { color: #f97316; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid #222; font-size: 0.8rem; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="brand">Spartan Coaching</div>
+      <h1>Privacy Policy</h1>
+      <p class="subtitle">Effective date: January 1, 2025 &nbsp;·&nbsp; Last updated: June 2025</p>
+    </header>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        Spartan Coaching collects only the information needed to deliver coaching services and
+        respond to inquiries — your name, email, company, and the questions you ask. We are
+        committed to handling that information responsibly.
+      </p>
+    </section>
+
+    <section>
+      <h2>Information We Collect</h2>
+      <ul>
+        <li>Name, email address, phone number, and company name (submitted via contact forms)</li>
+        <li>Questions and messages you send through the app or website</li>
+        <li>Device-scoped identifiers (not linked to your identity) used to track drill streaks within the app</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>How We Use Your Information</h2>
+      <ul>
+        <li>To respond to inquiries and deliver coaching services you have requested</li>
+        <li>To send transactional emails (booking confirmations, document delivery)</li>
+        <li>To improve the coaching content and app experience</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Third-Party Processors</h2>
+      <p>We share data only with the processors necessary to operate the service:</p>
+      <ul>
+        <li><strong>OpenAI</strong> — AI coaching conversations are processed under our enterprise agreement; no PHI is stored or used for model training.</li>
+        <li><strong>Resend</strong> — Transactional email delivery. Email content is retained per Resend&rsquo;s standard retention policy.</li>
+        <li><strong>Stripe</strong> — Payment processing for coaching engagements. Card data is handled entirely by Stripe; we never see or store raw payment details.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Data Sharing &amp; Sale</h2>
+      <ul>
+        <li>We never sell, rent, or trade your personal data to third parties.</li>
+        <li>We do not use your data for advertising or behavioral profiling.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>HIPAA &amp; Protected Health Information</h2>
+      <ul>
+        <li>The app is designed to never collect, store, or transmit Protected Health Information (PHI).</li>
+        <li>The Eligibility Quick Check feature is anonymous — no patient identifiers are collected or stored.</li>
+        <li>For corporate engagements that may involve PHI, a Business Associate Agreement (BAA) is available on request.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Data Retention</h2>
+      <p>
+        Contact submissions are retained for as long as necessary to fulfill the service request and for
+        reasonable follow-up. You may request deletion of any personal data we hold at any time.
+      </p>
+    </section>
+
+    <section>
+      <h2>Your Rights &amp; Data Deletion</h2>
+      <p>
+        You have the right to access, correct, or delete the personal data we hold about you.
+        To exercise any of these rights, email us at
+        <a href="mailto:nick@spartanhospicecoaching.com">nick@spartanhospicecoaching.com</a>
+        and we will respond within 30 days.
+      </p>
+    </section>
+
+    <section>
+      <h2>Security</h2>
+      <p>
+        We use industry-standard measures to protect your data, including encrypted connections (TLS),
+        access controls, and a managed PostgreSQL database hosted on Replit&rsquo;s infrastructure.
+      </p>
+    </section>
+
+    <section>
+      <h2>Changes to This Policy</h2>
+      <p>
+        We may update this policy from time to time. Continued use of the app after an update
+        constitutes acceptance of the revised policy. The &ldquo;Last updated&rdquo; date at the top of this
+        page reflects the most recent revision.
+      </p>
+    </section>
+
+    <section>
+      <h2>Contact</h2>
+      <p>
+        Spartan Coaching<br />
+        Nick Lynch<br />
+        <a href="mailto:nick@spartanhospicecoaching.com">nick@spartanhospicecoaching.com</a>
+      </p>
+    </section>
+
+    <footer>
+      &copy; 2025 Spartan Coaching. All rights reserved.
+    </footer>
+  </div>
+</body>
+</html>"""
+
+
+@app.get("/privacy", response_class=HTMLResponse, include_in_schema=False)
+async def privacy_policy():
+    return HTMLResponse(content=_PRIVACY_HTML, status_code=200)
+
 
 # ---------- Database schema ----------
 _CREATE_TABLES = [
