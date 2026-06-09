@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ScrollView, View, StyleSheet, Pressable, Linking } from 'react-native';
+import { ScrollView, View, StyleSheet, Pressable } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -165,7 +166,7 @@ export default function LegalScreen() {
         <View style={{ marginTop: spacing.l, gap: spacing.m }}>
           <Pressable
             testID="legal-privacy-url"
-            onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
+            onPress={() => WebBrowser.openBrowserAsync(PRIVACY_POLICY_URL)}
             style={styles.privacyLink}
           >
             <Ionicons name="globe-outline" size={16} color={palette.primary} />
@@ -176,7 +177,7 @@ export default function LegalScreen() {
           </Pressable>
           <Pressable
             testID="legal-terms-url"
-            onPress={() => Linking.openURL(TERMS_URL)}
+            onPress={() => WebBrowser.openBrowserAsync(TERMS_URL)}
             style={styles.privacyLink}
           >
             <Ionicons name="document-text-outline" size={16} color={palette.primary} />
