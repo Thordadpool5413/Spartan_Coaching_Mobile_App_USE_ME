@@ -298,17 +298,20 @@ class ChatResponse(BaseModel):
 
 class AskRequest(BaseModel):
     question: str = Field(..., min_length=3, max_length=2000)
+    deviceId: Optional[str] = Field(default=None, max_length=255)
 
 
 class ObjectionRequest(BaseModel):
     objection: str = Field(..., min_length=3, max_length=1000)
     context: Optional[str] = Field(default=None, max_length=1000)
+    deviceId: Optional[str] = Field(default=None, max_length=255)
 
 
 class PlaybookRequest(BaseModel):
     scenario: str = Field(..., min_length=10, max_length=2000)
     referralSourceType: Optional[str] = None
     goal: Optional[str] = None
+    deviceId: Optional[str] = Field(default=None, max_length=255)
 
 
 class RoleplayMessage(BaseModel):
@@ -320,6 +323,7 @@ class RoleplayRequest(BaseModel):
     scenarioId: str
     userMessage: str = Field(..., min_length=1, max_length=2000)
     history: List[RoleplayMessage] = Field(default_factory=list)
+    deviceId: Optional[str] = Field(default=None, max_length=255)
 
 
 class RoleplayFeedbackRequest(BaseModel):
@@ -355,6 +359,7 @@ class EligibilityRequest(BaseModel):
     functionalScale: Optional[str] = Field(default=None, max_length=20)
     recentEvents: Optional[str] = Field(default=None, max_length=800)
     notes: Optional[str] = Field(default=None, max_length=800)
+    deviceId: Optional[str] = Field(default=None, max_length=255)
 
 
 class CheckoutRequest(BaseModel):
@@ -402,7 +407,7 @@ async def chat_endpoint(req: ChatRequest, request: Request):
 
 @api.post("/ask", response_model=ChatResponse)
 async def ask_endpoint(req: AskRequest, request: Request):
-    rate_limit_ai(request)
+    rate_limit_ai(request, req.deviceId)
     prompt = (
         f"A hospice growth professional asks: {req.question}\n\n"
         "Give a clear, concrete, field-ready answer (300-500 words). Use bullets or numbered steps where they help."
@@ -420,7 +425,7 @@ async def ask_endpoint(req: AskRequest, request: Request):
 # ---------- AI: Objection Handler ----------
 @api.post("/tools/objection", response_model=ChatResponse)
 async def objection_endpoint(req: ObjectionRequest, request: Request):
-    rate_limit_ai(request)
+    rate_limit_ai(request, req.deviceId)
     prompt = (
         f'OBJECTION HEARD: "{req.objection}"\n\n'
         f'{"CONTEXT: " + req.context + chr(10) + chr(10) if req.context else ""}'
@@ -443,7 +448,7 @@ async def objection_endpoint(req: ObjectionRequest, request: Request):
 # ---------- AI: Playbook Generator ----------
 @api.post("/tools/playbook", response_model=ChatResponse)
 async def playbook_endpoint(req: PlaybookRequest, request: Request):
-    rate_limit_ai(request)
+    rate_limit_ai(request, req.deviceId)
     prompt = (
         f"SCENARIO: {req.scenario}\n"
         f"REFERRAL SOURCE TYPE: {req.referralSourceType or 'Unspecified'}\n"
@@ -483,7 +488,7 @@ async def roleplay_scenarios():
 
 @api.post("/roleplay/turn", response_model=ChatResponse)
 async def roleplay_turn(req: RoleplayRequest, request: Request):
-    rate_limit_ai(request)
+    rate_limit_ai(request, req.deviceId)
     scenario = ROLEPLAY_CHARACTERS.get(req.scenarioId)
     if not scenario:
         raise HTTPException(status_code=404, detail="Unknown scenario")
@@ -736,7 +741,7 @@ A single sentence reminding the reader that final eligibility determination requ
 
 @api.post("/eligibility/assess")
 async def eligibility_assess(req: EligibilityRequest, request: Request):
-    rate_limit_ai(request)
+    rate_limit_ai(request, req.deviceId)
     indicators_text = ", ".join(req.indicators) if req.indicators else "none reported"
     prompt = ELIGIBILITY_PROMPT_TEMPLATE.format(
         diagnosis=req.diagnosis,
@@ -1009,11 +1014,18 @@ async def stripe_webhook(request: Request):
     body = await request.body()
     sig  = request.headers.get("Stripe-Signature", "")
     try:
-        if STRIPE_WEBHOOK_SECRET and sig:
+        if STRIPE_WEBHOOK_SECRET:
+            # Secret is configured — always require a valid signature; reject missing/invalid ones.
+            if not sig:
+                logger.warning("stripe webhook: Stripe-Signature header missing (secret is set)")
+                raise HTTPException(status_code=400, detail="Missing Stripe-Signature header.")
             event = stripe_lib.Webhook.construct_event(body, sig, STRIPE_WEBHOOK_SECRET)
         else:
+            # No secret set — accept unsigned events (dev/testing only; warned at startup).
             import json as _json
             event = stripe_lib.Event.construct_from(_json.loads(body), stripe_lib.api_key)
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.exception("stripe webhook verify failed")
         raise HTTPException(status_code=400, detail=f"Webhook error: {exc}")
