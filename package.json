@@ -1,4 +1,5 @@
 {
   "name": "spartan-coaching",
-  "private": true
+  "private": true,
+  "description": "Spartan Hospice Coaching – root manifest (satisfies deployment package scan)"
 }

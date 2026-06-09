@@ -4,8 +4,11 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { View, Linking, Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { palette } from '../theme';
+
+const ONBOARDING_KEY = 'onboarding_v1_complete';
 
 function usePaymentDeepLink() {
   const router = useRouter();
@@ -19,8 +22,6 @@ function usePaymentDeepLink() {
         const parsed = new URL(url);
         if (parsed.hostname === 'payment-success') {
           const sessionId = parsed.searchParams.get('session_id') || '';
-          // Guard: only navigate when session_id is present to avoid landing on
-          // the payment-success error state with a malformed or empty link.
           if (sessionId) {
             router.push({ pathname: '/payment-success', params: { session_id: sessionId } } as any);
           }
@@ -28,14 +29,8 @@ function usePaymentDeepLink() {
       } catch {}
     };
 
-    // Runtime listener: app is open or in background and receives a spartan:// deep link.
-    // Note: during an active WebBrowser.openAuthSessionAsync session the URL is intercepted
-    // before it reaches this listener, so there is no double-navigation.
     const sub = Linking.addEventListener('url', (e) => handleUrl(e.url));
-
-    // Cold-start: app was killed and re-opened via a spartan:// deep link.
     Linking.getInitialURL().then((url) => { if (url) handleUrl(url); });
-
     return () => sub.remove();
   }, [router]);
 }
@@ -44,8 +39,6 @@ function useNotificationTap() {
   const router = useRouter();
   useEffect(() => {
     if (Platform.OS === 'web') return;
-    // When the user taps a push notification, route them to the relevant screen.
-    // The daily drill notification sets data.url = '/drills' in notifications.ts.
     const sub = Notifications.addNotificationResponseReceivedListener((response) => {
       const data = response.notification.request.content.data as Record<string, unknown>;
       const url = typeof data?.url === 'string' ? data.url : null;
@@ -57,9 +50,23 @@ function useNotificationTap() {
   }, [router]);
 }
 
+function useOnboarding() {
+  const router = useRouter();
+  useEffect(() => {
+    let cancelled = false;
+    AsyncStorage.getItem(ONBOARDING_KEY).then((val) => {
+      if (!cancelled && !val) {
+        router.replace('/onboarding' as any);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [router]);
+}
+
 export default function RootLayout() {
   usePaymentDeepLink();
   useNotificationTap();
+  useOnboarding();
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: palette.bg }}>
@@ -75,6 +82,7 @@ export default function RootLayout() {
             }}
           >
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
             <Stack.Screen name="ask" options={{ title: 'Ask a Hospice Expert' }} />
             <Stack.Screen name="chat" options={{ title: 'Coach Chat' }} />
             <Stack.Screen name="objection" options={{ title: 'Objection Handler' }} />

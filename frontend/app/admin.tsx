@@ -8,13 +8,14 @@ import { Card, PrimaryButton, GhostButton, H2, H3, Body, Small, SectionLabel } f
 import {
   adminOverview, adminContacts, adminEligibility, AdminOverview,
   adminCreateArticle, adminUpdateArticle, adminDeleteArticle, adminReorderArticles, getArticles,
+  adminUpdateHeroBadge, getHeroBadge,
   Article, ArticlePayload,
 } from '../lib/api';
 
 const TOKEN_KEY = 'spartan_admin_token';
 const PIN_LENGTH = 4;
 
-type Tab = 'overview' | 'contacts' | 'eligibility' | 'articles';
+type Tab = 'overview' | 'contacts' | 'eligibility' | 'articles' | 'settings';
 type ArticleView = 'list' | 'form';
 
 const TAB_LABELS: Record<Tab, string> = {
@@ -22,6 +23,7 @@ const TAB_LABELS: Record<Tab, string> = {
   contacts: 'CONTACTS',
   eligibility: 'ELIG.',
   articles: 'ARTICLES',
+  settings: 'SETTINGS',
 };
 
 // ─── PIN pad ────────────────────────────────────────────────────────────────
@@ -118,6 +120,9 @@ export default function AdminScreen() {
   const [tab, setTab] = useState<Tab>('overview');
   const [articleView, setArticleView] = useState<ArticleView>('list');
   const [editingArticle, setEditingArticle] = useState<Article | null>(null);
+  const [heroBadge, setHeroBadge] = useState('');
+  const [badgeSaving, setBadgeSaving] = useState(false);
+  const [badgeSaved, setBadgeSaved] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -134,16 +139,18 @@ export default function AdminScreen() {
     setLoading(true);
     setError(null);
     try {
-      const [ov, c, e, arts] = await Promise.all([
+      const [ov, c, e, arts, badge] = await Promise.all([
         adminOverview(t),
         adminContacts(t),
         adminEligibility(t),
         getArticles(),
+        getHeroBadge(),
       ]);
       setOverview(ov);
       setContacts(c.items || []);
       setElig(e.items || []);
       setArticles(arts.articles || []);
+      setHeroBadge(badge.text);
       setAuthed(true);
       await AsyncStorage.setItem(TOKEN_KEY, t);
     } catch (err: any) {
@@ -192,7 +199,7 @@ export default function AdminScreen() {
   return (
     <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
       <View style={styles.tabBar}>
-        {(['overview', 'contacts', 'eligibility', 'articles'] as const).map((t) => (
+        {(['overview', 'contacts', 'eligibility', 'articles', 'settings'] as const).map((t) => (
           <Pressable
             key={t}
             testID={`admin-tab-${t}`}
@@ -238,6 +245,26 @@ export default function AdminScreen() {
               onCancel={() => setArticleView('list')}
             />
           )
+        ) : null}
+        {tab === 'settings' ? (
+          <SettingsView
+            token={token}
+            heroBadge={heroBadge}
+            onBadgeChange={setHeroBadge}
+            saving={badgeSaving}
+            saved={badgeSaved}
+            onSave={async () => {
+              if (!heroBadge.trim()) return;
+              setBadgeSaving(true);
+              setBadgeSaved(false);
+              try {
+                await adminUpdateHeroBadge(token, heroBadge.trim());
+                setBadgeSaved(true);
+                setTimeout(() => setBadgeSaved(false), 2500);
+              } catch {}
+              setBadgeSaving(false);
+            }}
+          />
         ) : null}
       </ScrollView>
     </SafeAreaView>
@@ -539,6 +566,53 @@ function ArticleFormView({
         icon={saving ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="checkmark" size={16} color="#fff" />}
       />
       <GhostButton label="Cancel" onPress={onCancel} style={{ marginTop: spacing.s }} />
+    </>
+  );
+}
+
+// ─── Settings ────────────────────────────────────────────────────────────────
+
+function SettingsView({
+  token: _token,
+  heroBadge,
+  onBadgeChange,
+  saving,
+  saved,
+  onSave,
+}: {
+  token: string;
+  heroBadge: string;
+  onBadgeChange: (s: string) => void;
+  saving: boolean;
+  saved: boolean;
+  onSave: () => void;
+}) {
+  return (
+    <>
+      <SectionLabel>App Settings</SectionLabel>
+      <H2 style={{ marginBottom: spacing.l }}>Home screen badge</H2>
+      <Card style={{ marginBottom: spacing.l }}>
+        <Text style={styles.fieldLabel}>Hero badge text</Text>
+        <TextInput
+          value={heroBadge}
+          onChangeText={onBadgeChange}
+          placeholder="e.g. 2026 Coaching Programs Open"
+          placeholderTextColor={palette.textFaint}
+          style={styles.fieldInput}
+          maxLength={120}
+          returnKeyType="done"
+        />
+        <Small dim style={{ marginTop: spacing.s }}>
+          Displayed on the home screen green badge. Max 120 characters.
+        </Small>
+        <PrimaryButton
+          label={saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save Badge Text'}
+          onPress={onSave}
+          disabled={saving || !heroBadge.trim()}
+          style={{ marginTop: spacing.l }}
+          icon={saved ? <Ionicons name="checkmark" size={16} color="#fff" /> : undefined}
+        />
+      </Card>
     </>
   );
 }

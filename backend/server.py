@@ -441,6 +441,13 @@ _CREATE_TABLES = [
         created_at   TIMESTAMPTZ  DEFAULT NOW()
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS app_settings (
+        key        TEXT PRIMARY KEY,
+        value      TEXT NOT NULL,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+    """,
 ]
 
 _SEED_ARTICLES = [
@@ -933,6 +940,12 @@ async def startup():
                     "UPDATE articles SET body = $1 WHERE id = $2 AND body IS NULL",
                     body, article_id,
                 )
+            # Seed default hero badge setting
+            await conn.execute(
+                """INSERT INTO app_settings (key, value)
+                   VALUES ('hero_badge', '2026 Coaching Programs Open')
+                   ON CONFLICT (key) DO NOTHING"""
+            )
             # Initialize sort_order for articles that haven't been ordered yet
             max_order = await conn.fetchval("SELECT MAX(sort_order) FROM articles")
             if max_order is None or max_order == 0:
@@ -1705,6 +1718,37 @@ async def admin_delete_article(article_id: str, _: bool = Depends(require_admin)
     if result == "DELETE 0":
         raise HTTPException(status_code=404, detail="Article not found")
     return {"id": article_id, "status": "deleted"}
+
+
+# ---------- App Settings ----------
+
+class HeroBadgeUpdate(BaseModel):
+    text: str
+
+@app.get("/api/settings/hero")
+async def get_hero_badge():
+    """Public endpoint — returns the hero badge text shown on the home screen."""
+    if pool is None:
+        return {"text": "2026 Coaching Programs Open"}
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT value FROM app_settings WHERE key = 'hero_badge'")
+    return {"text": row["value"] if row else "2026 Coaching Programs Open"}
+
+@app.put("/api/admin/settings/hero")
+async def admin_update_hero_badge(payload: HeroBadgeUpdate, _: bool = Depends(require_admin)):
+    if not payload.text.strip():
+        raise HTTPException(status_code=422, detail="Badge text cannot be empty.")
+    if pool is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    text = payload.text.strip()[:120]
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO app_settings (key, value, updated_at)
+               VALUES ('hero_badge', $1, NOW())
+               ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()""",
+            text,
+        )
+    return {"status": "updated", "text": text}
 
 
 # ---------- Billing / Stripe ----------
