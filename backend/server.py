@@ -1652,6 +1652,17 @@ async def admin_update_article(article_id: str, payload: ArticlePayload, _: bool
     return {"id": article_id, "status": "updated"}
 
 
+@api.delete("/admin/articles/{article_id}", status_code=200)
+async def admin_delete_article(article_id: str, _: bool = Depends(require_admin)):
+    if not pool:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    async with pool.acquire() as conn:
+        result = await conn.execute("DELETE FROM articles WHERE id = $1", article_id)
+    if result == "DELETE 0":
+        raise HTTPException(status_code=404, detail="Article not found")
+    return {"id": article_id, "status": "deleted"}
+
+
 # ---------- Billing / Stripe ----------
 COACHING_PACKAGES = {
     "coaching_30": {"name": "Virtual Coaching Session — 30 minutes", "amount": 40.00, "currency": "usd", "duration_min": 30},

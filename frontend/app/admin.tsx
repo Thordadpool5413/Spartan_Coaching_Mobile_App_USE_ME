@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, View, Text, TextInput, Pressable, Switch, StyleSheet, ActivityIndicator } from 'react-native';
+import { ScrollView, View, Text, TextInput, Pressable, Switch, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,7 +7,7 @@ import { palette, radius, spacing } from '../theme';
 import { Card, PrimaryButton, GhostButton, H2, H3, Body, Small, SectionLabel } from '../components/UI';
 import {
   adminOverview, adminContacts, adminEligibility, AdminOverview,
-  adminCreateArticle, adminUpdateArticle, getArticles,
+  adminCreateArticle, adminUpdateArticle, adminDeleteArticle, getArticles,
   Article, ArticlePayload,
 } from '../lib/api';
 
@@ -222,8 +222,10 @@ export default function AdminScreen() {
           articleView === 'list' ? (
             <ArticlesListView
               articles={articles}
+              token={token}
               onNew={() => { setEditingArticle(null); setArticleView('form'); }}
               onEdit={(a) => { setEditingArticle(a); setArticleView('form'); }}
+              onDeleted={loadArticles}
             />
           ) : (
             <ArticleFormView
@@ -246,13 +248,45 @@ export default function AdminScreen() {
 
 function ArticlesListView({
   articles,
+  token,
   onNew,
   onEdit,
+  onDeleted,
 }: {
   articles: Article[];
+  token: string;
   onNew: () => void;
   onEdit: (a: Article) => void;
+  onDeleted: () => Promise<void>;
 }) {
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDelete = (a: Article) => {
+    Alert.alert(
+      'Delete Article',
+      `Are you sure you want to delete "${a.title}"? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setDeletingId(a.id);
+            try {
+              await adminDeleteArticle(token, a.id);
+              await onDeleted();
+            } catch (e: any) {
+              const detail = e?.response?.data?.detail;
+              Alert.alert('Error', detail || 'Failed to delete article. Please try again.');
+            } finally {
+              setDeletingId(null);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.l }}>
@@ -283,6 +317,17 @@ function ArticlesListView({
             </View>
             <Pressable onPress={() => onEdit(a)} style={styles.editBtn} hitSlop={8}>
               <Ionicons name="pencil-outline" size={18} color={palette.primary} />
+            </Pressable>
+            <Pressable
+              onPress={() => handleDelete(a)}
+              disabled={deletingId === a.id}
+              style={[styles.editBtn, { marginLeft: spacing.s }]}
+              hitSlop={8}
+            >
+              {deletingId === a.id
+                ? <ActivityIndicator size="small" color={palette.primary} />
+                : <Ionicons name="trash-outline" size={18} color="#ef4444" />
+              }
             </Pressable>
           </View>
         </Card>
