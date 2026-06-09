@@ -18,6 +18,8 @@ import Markdown from 'react-native-markdown-display';
 import { palette, radius, spacing } from '../theme';
 import { Card, PrimaryButton, GhostButton, H1, H2, H3, Body, Small, SectionLabel, PhiNotice } from '../components/UI';
 import { assessEligibility, EligibilityVerdict } from '../lib/api';
+import PaywallGate from '../components/PaywallGate';
+import { useSubscription } from '../lib/subscription';
 import { markdownStyles } from '../components/markdownStyles';
 
 const DIAGNOSES = [
@@ -63,6 +65,7 @@ export default function EligibilityScreen() {
   const [recentEvents, setRecentEvents] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ verdict: EligibilityVerdict; summary: string } | null>(null);
+  const { isActive } = useSubscription();
 
   const diagObj = DIAGNOSES.find((d) => d.id === diagnosis);
   const scale = diagObj?.scale || 'PPS';
@@ -116,6 +119,10 @@ export default function EligibilityScreen() {
       // no-op
     }
   };
+
+  if (!isActive) {
+    return <PaywallGate feature="Eligibility Quick Check"><></></PaywallGate>;
+  }
 
   if (result) {
     return (
