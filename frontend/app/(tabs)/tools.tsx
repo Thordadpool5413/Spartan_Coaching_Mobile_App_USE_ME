@@ -56,7 +56,7 @@ export default function ToolsTab() {
   const router = useRouter();
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: palette.bg }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 100, padding: spacing.l }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 120, padding: spacing.l }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <SectionLabel>AI Tools</SectionLabel>
         <H1 style={{ marginBottom: spacing.s }}>Sharpen the craft</H1>
         <Body dim style={{ marginBottom: spacing.xl }}>
