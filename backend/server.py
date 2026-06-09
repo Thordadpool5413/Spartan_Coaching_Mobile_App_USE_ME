@@ -372,9 +372,11 @@ _rate_buckets: dict[str, deque] = defaultdict(deque)
 
 def rate_limit_ai(request: Request, device_id: Optional[str] = None) -> None:
     ip  = request.client.host if request.client else "unknown"
-    # Prefer device_id so every mobile device gets its own bucket rather than
-    # all devices on the same NAT/Wi-Fi being collapsed to a single IP bucket.
-    key = f"device:{device_id}" if device_id else f"ip:{ip}"
+    # Header takes precedence (injected by api.ts interceptor for every call),
+    # then fall back to the body field, then to IP.
+    header_id = request.headers.get("X-Device-ID")
+    resolved  = header_id or device_id
+    key = f"device:{resolved}" if resolved else f"ip:{ip}"
     now = _time.time()
     bkt = _rate_buckets[key]
     while bkt and now - bkt[0] > _RATE_WINDOW:

@@ -31,9 +31,17 @@ export const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Recompute base URL per-request so it never goes stale across hot reloads.
-api.interceptors.request.use((config) => {
+// Recompute base URL per-request and inject X-Device-ID so the backend rate
+// limiter buckets by device rather than shared IP (e.g. hospital Wi-Fi).
+api.interceptors.request.use(async (config) => {
   config.baseURL = `${resolveBackendUrl()}/api`;
+  try {
+    const deviceId = await getDeviceId();
+    config.headers = config.headers ?? {};
+    config.headers['X-Device-ID'] = deviceId;
+  } catch {
+    // Non-fatal: rate limiter falls back to IP.
+  }
   return config;
 });
 
