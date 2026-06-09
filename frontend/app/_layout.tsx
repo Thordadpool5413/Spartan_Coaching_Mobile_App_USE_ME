@@ -94,6 +94,7 @@ export default function RootLayout() {
             <Stack.Screen name="payment-success" options={{ title: 'Booking Confirmation' }} />
             <Stack.Screen name="testimonials" options={{ title: 'Success Stories' }} />
             <Stack.Screen name="articles" options={{ title: 'Articles & Insights' }} />
+            <Stack.Screen name="article-detail" options={{ headerShown: false }} />
             <Stack.Screen name="podcasts" options={{ title: 'Spartan Podcast' }} />
             <Stack.Screen name="resources" options={{ title: 'Resource Library' }} />
             <Stack.Screen name="programs" options={{ title: 'Training Programs' }} />

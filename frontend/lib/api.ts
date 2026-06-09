@@ -205,6 +205,25 @@ export async function adminEligibility(token: string) {
   return data as { items: any[]; count: number };
 }
 
+export type ArticlePayload = {
+  title: string;
+  description: string;
+  body?: string;
+  linkedinUrl?: string;
+  publishDate: string;
+  featured: boolean;
+};
+
+export async function adminCreateArticle(token: string, payload: ArticlePayload) {
+  const { data } = await api.post('/admin/articles', payload, { headers: { Authorization: `Bearer ${token}` } });
+  return data as { id: string; status: string };
+}
+
+export async function adminUpdateArticle(token: string, id: string, payload: ArticlePayload) {
+  const { data } = await api.put(`/admin/articles/${id}`, payload, { headers: { Authorization: `Bearer ${token}` } });
+  return data as { id: string; status: string };
+}
+
 export type MethodContent = {
   pillars: { id: string; title: string; description: string }[];
   subjects: {
