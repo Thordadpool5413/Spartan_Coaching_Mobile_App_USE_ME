@@ -1388,7 +1388,8 @@ async def roleplay_turn(req: RoleplayRequest, request: Request):
 
 
 @api.post("/roleplay/feedback", response_model=RoleplayFeedbackResponse)
-async def roleplay_feedback(req: RoleplayFeedbackRequest):
+async def roleplay_feedback(req: RoleplayFeedbackRequest, request: Request):
+    await check_subscription(request, getattr(req, 'deviceId', None))
     scenario = ROLEPLAY_CHARACTERS.get(req.scenarioId)
     if not scenario:
         raise HTTPException(status_code=404, detail="Unknown scenario")
