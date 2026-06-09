@@ -67,8 +67,8 @@ export async function askSpartan(question: string) {
   return data.response as string;
 }
 
-export async function chatWithCoach(prompt: string, history: ChatHistoryItem[], deviceId?: string) {
-  const { data } = await api.post('/chat', { prompt, conversationHistory: history, ...(deviceId ? { deviceId } : {}) });
+export async function chatWithCoach(prompt: string, history: ChatHistoryItem[]) {
+  const { data } = await api.post('/chat', { prompt, conversationHistory: history });
   return data.response as string;
 }
 
