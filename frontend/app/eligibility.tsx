@@ -127,7 +127,7 @@ export default function EligibilityScreen() {
   if (result) {
     return (
       <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
-        <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
           <SectionLabel>Quick Check Result</SectionLabel>
           <H1 style={{ marginBottom: spacing.s }}>Hospice Readiness</H1>
           <Small dim style={{ marginBottom: spacing.l }}>{diagnosis} · {scale} {functionalScore}</Small>
@@ -204,7 +204,7 @@ export default function EligibilityScreen() {
 
   return (
     <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 100 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={{ flexDirection: 'row', gap: 4, marginBottom: spacing.l }}>
           {Array.from({ length: totalSteps }).map((_, i) => (
             <View
