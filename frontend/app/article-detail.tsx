@@ -56,7 +56,7 @@ export default function ArticleDetailScreen() {
   const mdStyles = getMarkdownStyles(textSize);
 
   return (
-    <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
+    <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
       <View style={styles.topBar}>
         <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
           <Ionicons name="arrow-back" size={22} color={palette.text} />
@@ -70,7 +70,7 @@ export default function ArticleDetailScreen() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {!article && !err && <ActivityIndicator color={palette.primary} style={{ marginTop: spacing.xl }} />}
         {err && <Body dim>{err}</Body>}
 

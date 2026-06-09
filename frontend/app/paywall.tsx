@@ -72,7 +72,7 @@ export default function PaywallScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: palette.bg }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 60 }} bounces={false} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 80 }} bounces={false} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {/* Header gradient */}
         <LinearGradient colors={['#1a0808', palette.bg]} style={styles.hero}>
           <View style={styles.logoWrap}>
