@@ -900,11 +900,14 @@ async def billing_checkout(req: CheckoutRequest, request: Request):
     if not pkg:
         raise HTTPException(status_code=400, detail="Unknown package.")
     _NATIVE_SCHEMES = {"spartan"}   # allowlist — add schemes here if the app slug changes
-    raw_origin = (req.origin_url or "").rstrip("/")
+    raw_origin = (req.origin_url or "")
+    # Detect scheme BEFORE stripping slashes — rstrip("/") on "spartan://" yields
+    # "spartan:" which drops the "//" and breaks scheme detection.
     if raw_origin.startswith("http://") or raw_origin.startswith("https://"):
-        # Web: standard http(s) origin
-        success_url = f"{raw_origin}/payment-success?session_id={{CHECKOUT_SESSION_ID}}"
-        cancel_url  = f"{raw_origin}/services"
+        # Web: standard http(s) origin — strip trailing slash for clean path join
+        http_origin = raw_origin.rstrip("/")
+        success_url = f"{http_origin}/payment-success?session_id={{CHECKOUT_SESSION_ID}}"
+        cancel_url  = f"{http_origin}/services"
     elif "://" in raw_origin and raw_origin.split("://")[0] in _NATIVE_SCHEMES:
         # Native: explicitly allowlisted custom deep-link scheme (e.g. spartan://)
         scheme = raw_origin.split("://")[0]
