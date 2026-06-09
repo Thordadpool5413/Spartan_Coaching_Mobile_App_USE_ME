@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle, TextStyle, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { palette, radius, shadow, spacing, typography } from '../theme';
 
 export function Card({ style, children, testID }: { style?: ViewStyle; children: React.ReactNode; testID?: string }) {
@@ -97,6 +98,17 @@ export function Body({ children, style, dim }: { children: React.ReactNode; styl
 }
 export function Small({ children, style, dim }: { children: React.ReactNode; style?: TextStyle; dim?: boolean }) {
   return <Text style={[typography.small, { color: dim ? palette.textDim : palette.text }, style]}>{children}</Text>;
+}
+
+export function PhiNotice({ style }: { style?: ViewStyle }) {
+  return (
+    <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 4 }, style]}>
+      <Ionicons name="shield-checkmark-outline" size={12} color={palette.textFaint} />
+      <Text style={{ color: palette.textFaint, fontSize: 11, flex: 1, lineHeight: 15 }}>
+        Do not enter patient names, IDs, or protected health information.
+      </Text>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({

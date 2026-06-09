@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
 import { palette, radius, spacing } from '../theme';
-import { Card, PrimaryButton, GhostButton, H2, Body, Small, SectionLabel } from '../components/UI';
+import { Card, PrimaryButton, GhostButton, H2, Body, Small, SectionLabel, PhiNotice } from '../components/UI';
 import { askSpartan } from '../lib/api';
 import { markdownStyles } from '../components/markdownStyles';
 
@@ -45,6 +45,7 @@ export default function AskScreen() {
           Get instant expert answers on hospice topics: sales strategies, clinical eligibility, regulations, territory planning, and more.
         </Body>
 
+        <PhiNotice />
         <View style={styles.inputWrap}>
           <Ionicons name="sparkles" size={18} color={palette.primary} style={{ marginLeft: 4 }} />
           <TextInput

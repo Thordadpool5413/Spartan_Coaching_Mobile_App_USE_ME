@@ -4,7 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
 import { palette, radius, spacing } from '../theme';
-import { Small, Body } from '../components/UI';
+import { Small, Body, PhiNotice } from '../components/UI';
 import { chatWithCoach, ChatHistoryItem } from '../lib/api';
 import { markdownStyles } from '../components/markdownStyles';
 
@@ -79,6 +79,7 @@ export default function ChatScreen() {
           )}
         </ScrollView>
 
+        <PhiNotice style={styles.phiRow} />
         <View style={styles.composer}>
           <TextInput
             testID="chat-input"
@@ -136,13 +137,21 @@ const styles = StyleSheet.create({
     borderColor: palette.cardBorder,
     borderBottomLeftRadius: 4,
   },
+  phiRow: {
+    paddingHorizontal: spacing.m,
+    paddingTop: spacing.s,
+    paddingBottom: 2,
+    borderTopWidth: 1,
+    borderColor: palette.divider,
+    backgroundColor: palette.bgElev1,
+  },
   composer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    padding: spacing.m,
+    paddingHorizontal: spacing.m,
+    paddingBottom: spacing.m,
+    paddingTop: 6,
     gap: 8,
-    borderTopWidth: 1,
-    borderColor: palette.divider,
     backgroundColor: palette.bgElev1,
   },
   input: {

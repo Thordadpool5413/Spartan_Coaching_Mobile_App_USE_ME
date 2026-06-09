@@ -94,6 +94,7 @@ In App Store Connect → your app → App Information, enter the Terms of Use UR
 ## Production checklist
 
 - [ ] Replace `ADMIN_TOKEN` with a strong random secret (currently defaults to `spartan-admin`)
+- [ ] Sign a BAA with OpenAI before going live — platform.openai.com → Settings → Privacy → HIPAA
 - [ ] Host privacy policy at `https://spartanhospicecoaching.com/privacy`
 - [ ] Host Terms of Service at `https://spartanhospicecoaching.com/terms`
 - [ ] Enter Terms of Service URL in App Store Connect → App Information → "Terms of Use URL" field
