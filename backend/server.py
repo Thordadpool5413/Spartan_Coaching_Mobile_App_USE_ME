@@ -899,13 +899,14 @@ async def billing_checkout(req: CheckoutRequest, request: Request):
     pkg = COACHING_PACKAGES.get(req.package_id)
     if not pkg:
         raise HTTPException(status_code=400, detail="Unknown package.")
+    _NATIVE_SCHEMES = {"spartan"}   # allowlist — add schemes here if the app slug changes
     raw_origin = (req.origin_url or "").rstrip("/")
-    if raw_origin.startswith("http"):
-        # Web: standard https:// or http:// origin
+    if raw_origin.startswith("http://") or raw_origin.startswith("https://"):
+        # Web: standard http(s) origin
         success_url = f"{raw_origin}/payment-success?session_id={{CHECKOUT_SESSION_ID}}"
         cancel_url  = f"{raw_origin}/services"
-    elif "://" in raw_origin:
-        # Native: custom deep-link scheme, e.g. spartan://
+    elif "://" in raw_origin and raw_origin.split("://")[0] in _NATIVE_SCHEMES:
+        # Native: explicitly allowlisted custom deep-link scheme (e.g. spartan://)
         scheme = raw_origin.split("://")[0]
         success_url = f"{scheme}://payment-success?session_id={{CHECKOUT_SESSION_ID}}"
         cancel_url  = f"{scheme}://services"
