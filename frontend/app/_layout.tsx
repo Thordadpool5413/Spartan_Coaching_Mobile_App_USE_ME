@@ -18,7 +18,11 @@ function usePaymentDeepLink() {
         const parsed = new URL(url);
         if (parsed.hostname === 'payment-success') {
           const sessionId = parsed.searchParams.get('session_id') || '';
-          router.push({ pathname: '/payment-success', params: { session_id: sessionId } } as any);
+          // Guard: only navigate when session_id is present to avoid landing on
+          // the payment-success error state with a malformed or empty link.
+          if (sessionId) {
+            router.push({ pathname: '/payment-success', params: { session_id: sessionId } } as any);
+          }
         }
       } catch {}
     };
