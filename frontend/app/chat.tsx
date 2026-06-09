@@ -8,6 +8,7 @@ import { palette, radius, spacing } from '../theme';
 import { Small, Body, PhiNotice } from '../components/UI';
 import { chatWithCoach, ChatHistoryItem } from '../lib/api';
 import { markdownStyles } from '../components/markdownStyles';
+import PaywallGate from '../components/PaywallGate';
 
 export default function ChatScreen() {
   const [messages, setMessages] = useState<ChatHistoryItem[]>([]);
@@ -42,7 +43,7 @@ export default function ChatScreen() {
   };
 
   return (
-    <>
+    <PaywallGate feature="AI Coaching Chat">
       <Stack.Screen
         options={{
           headerRight: () => (
@@ -123,7 +124,7 @@ export default function ChatScreen() {
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
-    </>
+    </PaywallGate>
   );
 }
 

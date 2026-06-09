@@ -356,3 +356,27 @@ export async function adminUpdateHeroBadge(token: string, text: string) {
   });
   return data as { status: string; text: string };
 }
+
+// ----- Subscription -----
+export type SubscriptionStatusResponse = {
+  tier: string;
+  trial_ends_at: string | null;
+  stripe_status: string | null;
+  is_active: boolean;
+  trial_hours_left: number;
+};
+
+export async function getSubscriptionStatus(): Promise<SubscriptionStatusResponse> {
+  const { data } = await api.get('/subscription/status');
+  return data as SubscriptionStatusResponse;
+}
+
+export async function createCheckoutSession(originUrl: string): Promise<{ url: string; session_id: string }> {
+  const { data } = await api.post('/subscription/checkout', { origin_url: originUrl });
+  return data as { url: string; session_id: string };
+}
+
+export async function getPortalUrl(): Promise<{ url: string }> {
+  const { data } = await api.get('/subscription/portal');
+  return data as { url: string };
+}

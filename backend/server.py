@@ -59,6 +59,7 @@ LLM_MODEL_FAST    = os.environ.get("LLM_MODEL_FAST", "gpt-4o-mini")
 ADMIN_TOKEN       = os.environ.get("ADMIN_TOKEN", "spartan-admin")
 STRIPE_API_KEY        = os.environ.get("STRIPE_API_KEY")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET")
+STRIPE_PRO_PRICE_ID   = os.environ.get("STRIPE_PRO_PRICE_ID")
 CORS_ALLOWED_ORIGINS = [
     o.strip()
     for o in os.environ.get("CORS_ALLOWED_ORIGINS", "*").split(",")
@@ -446,6 +447,19 @@ _CREATE_TABLES = [
         key        TEXT PRIMARY KEY,
         value      TEXT NOT NULL,
         updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS subscriptions (
+        device_id              TEXT PRIMARY KEY,
+        tier                   TEXT NOT NULL DEFAULT 'trial',
+        trial_started_at       TIMESTAMPTZ,
+        trial_ends_at          TIMESTAMPTZ,
+        stripe_customer_id     TEXT,
+        stripe_subscription_id TEXT,
+        stripe_status          TEXT,
+        created_at             TIMESTAMPTZ DEFAULT NOW(),
+        updated_at             TIMESTAMPTZ DEFAULT NOW()
     )
     """,
 ]
@@ -1031,6 +1045,56 @@ def rate_limit_ai(request: Request, device_id: Optional[str] = None) -> None:
     bkt.append(now)
 
 
+async def check_subscription(request: Request, device_id_body: Optional[str] = None) -> None:
+    """Gate AI features behind subscription. Raises 402 if trial expired and not subscribed."""
+    if not pool:
+        return  # No DB — allow (dev / cold start)
+
+    header_id = request.headers.get("X-Device-ID")
+    device_id = header_id or device_id_body
+    if not device_id:
+        return  # No device ID — allow (graceful degradation)
+
+    now = datetime.now(timezone.utc)
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT tier, trial_ends_at, stripe_status FROM subscriptions WHERE device_id = $1",
+            device_id,
+        )
+        if not row:
+            # First AI use — start 24-hour free trial automatically
+            trial_end = now + timedelta(hours=24)
+            await conn.execute(
+                """INSERT INTO subscriptions (device_id, tier, trial_started_at, trial_ends_at)
+                   VALUES ($1, 'trial', $2, $3)
+                   ON CONFLICT (device_id) DO NOTHING""",
+                device_id, now, trial_end,
+            )
+            return  # In trial
+
+    tier         = row["tier"]
+    stripe_status = row["stripe_status"]
+    trial_ends_at = row["trial_ends_at"]
+
+    # Active paying subscriber
+    if stripe_status == "active":
+        return
+
+    # Team license (extended in next task)
+    if tier == "team":
+        return
+
+    # Trial still valid
+    if trial_ends_at and trial_ends_at > now:
+        return
+
+    # Trial expired, no active subscription
+    raise HTTPException(
+        status_code=402,
+        detail={"error": "subscription_required", "trial_expired": True},
+    )
+
+
 async def llm_complete(
     system: str,
     user_text: str,
@@ -1180,6 +1244,7 @@ async def root():
 @api.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(req: ChatRequest, request: Request):
     rate_limit_ai(request, req.deviceId)
+    await check_subscription(request, req.deviceId)
     history = [m.model_dump() for m in req.conversationHistory]
     try:
         text = await llm_complete(SPARTAN_SYSTEM_INSTRUCTION, req.prompt, model=LLM_MODEL, history=history)
@@ -1203,6 +1268,7 @@ async def chat_endpoint(req: ChatRequest, request: Request):
 @api.post("/ask", response_model=ChatResponse)
 async def ask_endpoint(req: AskRequest, request: Request):
     rate_limit_ai(request, req.deviceId)
+    await check_subscription(request, req.deviceId)
     prompt = (
         f"A hospice growth professional asks: {req.question}\n\n"
         "Give a clear, concrete, field-ready answer (300-500 words). Use bullets or numbered steps where they help."
@@ -1221,6 +1287,7 @@ async def ask_endpoint(req: AskRequest, request: Request):
 @api.post("/tools/objection", response_model=ChatResponse)
 async def objection_endpoint(req: ObjectionRequest, request: Request):
     rate_limit_ai(request, req.deviceId)
+    await check_subscription(request, req.deviceId)
     prompt = (
         f'OBJECTION HEARD: "{req.objection}"\n\n'
         f'{"CONTEXT: " + req.context + chr(10) + chr(10) if req.context else ""}'
@@ -1244,6 +1311,7 @@ async def objection_endpoint(req: ObjectionRequest, request: Request):
 @api.post("/tools/playbook", response_model=ChatResponse)
 async def playbook_endpoint(req: PlaybookRequest, request: Request):
     rate_limit_ai(request, req.deviceId)
+    await check_subscription(request, req.deviceId)
     prompt = (
         f"SCENARIO: {req.scenario}\n"
         f"REFERRAL SOURCE TYPE: {req.referralSourceType or 'Unspecified'}\n"
@@ -1284,6 +1352,7 @@ async def roleplay_scenarios():
 @api.post("/roleplay/turn", response_model=ChatResponse)
 async def roleplay_turn(req: RoleplayRequest, request: Request):
     rate_limit_ai(request, req.deviceId)
+    await check_subscription(request, req.deviceId)
     scenario = ROLEPLAY_CHARACTERS.get(req.scenarioId)
     if not scenario:
         raise HTTPException(status_code=404, detail="Unknown scenario")
@@ -1537,6 +1606,7 @@ A single sentence reminding the reader that final eligibility determination requ
 @api.post("/eligibility/assess")
 async def eligibility_assess(req: EligibilityRequest, request: Request):
     rate_limit_ai(request, req.deviceId)
+    await check_subscription(request, req.deviceId)
     indicators_text = ", ".join(req.indicators) if req.indicators else "none reported"
     prompt = ELIGIBILITY_PROMPT_TEMPLATE.format(
         diagnosis=req.diagnosis,
@@ -1918,6 +1988,122 @@ async def billing_status(session_id: str):
     }
 
 
+# ---------- Subscription ----------
+
+@api.get("/subscription/status")
+async def subscription_status(request: Request):
+    device_id = request.headers.get("X-Device-ID", "")
+    if not device_id or not pool:
+        return {"tier": "none", "trial_ends_at": None, "stripe_status": None, "is_active": True, "trial_hours_left": 0}
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT tier, trial_ends_at, stripe_status FROM subscriptions WHERE device_id = $1",
+            device_id,
+        )
+    if not row:
+        return {"tier": "none", "trial_ends_at": None, "stripe_status": None, "is_active": True, "trial_hours_left": 24}
+    now = datetime.now(timezone.utc)
+    tier          = row["tier"]
+    stripe_status = row["stripe_status"]
+    trial_ends_at = row["trial_ends_at"]
+    is_active = (
+        stripe_status == "active"
+        or tier == "team"
+        or (trial_ends_at is not None and trial_ends_at > now)
+    )
+    hours_left = 0
+    if trial_ends_at and trial_ends_at > now:
+        hours_left = max(0, int((trial_ends_at - now).total_seconds() / 3600))
+    return {
+        "tier": tier,
+        "trial_ends_at": trial_ends_at.isoformat() if trial_ends_at else None,
+        "stripe_status": stripe_status,
+        "is_active": is_active,
+        "trial_hours_left": hours_left,
+    }
+
+
+class SubscriptionCheckoutRequest(BaseModel):
+    origin_url: Optional[str] = None
+
+
+@api.post("/subscription/checkout")
+async def subscription_checkout(req: SubscriptionCheckoutRequest, request: Request):
+    if not STRIPE_API_KEY:
+        raise HTTPException(status_code=503, detail="Payments are not configured.")
+    if not STRIPE_PRO_PRICE_ID:
+        raise HTTPException(status_code=503, detail="Subscription product not configured.")
+    device_id = request.headers.get("X-Device-ID", "")
+    raw_origin = req.origin_url or ""
+    _NATIVE_SCHEMES = {"spartan"}
+    if raw_origin.startswith("http://") or raw_origin.startswith("https://"):
+        http_origin = raw_origin.rstrip("/")
+        success_url = f"{http_origin}/subscription-success"
+        cancel_url  = f"{http_origin}/paywall"
+    elif "://" in raw_origin and raw_origin.split("://")[0] in _NATIVE_SCHEMES:
+        scheme = raw_origin.split("://")[0]
+        success_url = f"{scheme}://subscription-success"
+        cancel_url  = f"{scheme}://paywall"
+    else:
+        success_url = "spartan://subscription-success"
+        cancel_url  = "spartan://paywall"
+    stripe_customer_id = None
+    if pool and device_id:
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT stripe_customer_id FROM subscriptions WHERE device_id = $1", device_id
+            )
+            if row:
+                stripe_customer_id = row["stripe_customer_id"]
+    try:
+        loop = asyncio.get_event_loop()
+        create_kwargs: dict = {
+            "mode": "subscription",
+            "line_items": [{"price": STRIPE_PRO_PRICE_ID, "quantity": 1}],
+            "success_url": success_url,
+            "cancel_url": cancel_url,
+            "allow_promotion_codes": True,
+            "metadata": {"device_id": device_id or "", "source": "spartan_app"},
+        }
+        if stripe_customer_id:
+            create_kwargs["customer"] = stripe_customer_id
+        session = await loop.run_in_executor(
+            None, lambda: stripe_lib.checkout.Session.create(**create_kwargs)
+        )
+    except Exception as exc:
+        logger.exception("stripe subscription checkout failed")
+        raise HTTPException(status_code=502, detail=f"Stripe error: {exc}")
+    return {"url": session.url, "session_id": session.id}
+
+
+@api.get("/subscription/portal")
+async def subscription_portal(request: Request):
+    if not STRIPE_API_KEY:
+        raise HTTPException(status_code=503, detail="Payments are not configured.")
+    device_id = request.headers.get("X-Device-ID", "")
+    if not device_id or not pool:
+        raise HTTPException(status_code=404, detail="No subscription found.")
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT stripe_customer_id FROM subscriptions WHERE device_id = $1", device_id
+        )
+    if not row or not row["stripe_customer_id"]:
+        raise HTTPException(status_code=404, detail="No billing account found. Subscribe first.")
+    try:
+        loop = asyncio.get_event_loop()
+        portal = await loop.run_in_executor(
+            None,
+            lambda: stripe_lib.billing_portal.Session.create(
+                customer=row["stripe_customer_id"],
+                return_url="spartan://settings",
+            ),
+        )
+    except Exception as exc:
+        logger.exception("stripe portal session failed")
+        raise HTTPException(status_code=502, detail=f"Stripe error: {exc}")
+    return {"url": portal.url}
+
+
 @api.post("/webhook/stripe")
 async def stripe_webhook(request: Request):
     body = await request.body()
@@ -1939,20 +2125,63 @@ async def stripe_webhook(request: Request):
         logger.exception("stripe webhook verify failed")
         raise HTTPException(status_code=400, detail=f"Webhook error: {exc}")
 
-    session_id     = None
-    payment_status = None
-    event_type     = event.get("type", "")
+    session_id          = None
+    payment_status      = None
+    is_subscription_mode = False
+    event_type          = event.get("type", "")
 
     if event_type in ("checkout.session.completed", "checkout.session.async_payment_succeeded"):
         obj            = event["data"]["object"]
         session_id     = obj.get("id")
         payment_status = obj.get("payment_status", "paid")
+        if obj.get("mode") == "subscription":
+            is_subscription_mode = True
+            if pool:
+                device_id   = (obj.get("metadata") or {}).get("device_id", "")
+                customer_id = obj.get("customer")
+                sub_id      = obj.get("subscription")
+                if device_id and customer_id:
+                    async with pool.acquire() as conn:
+                        await conn.execute(
+                            """INSERT INTO subscriptions
+                                   (device_id, tier, stripe_customer_id, stripe_subscription_id, stripe_status)
+                               VALUES ($1, 'pro', $2, $3, 'active')
+                               ON CONFLICT (device_id) DO UPDATE SET
+                                   tier = 'pro',
+                                   stripe_customer_id = $2,
+                                   stripe_subscription_id = $3,
+                                   stripe_status = 'active',
+                                   updated_at = NOW()""",
+                            device_id, customer_id, sub_id,
+                        )
+                    logger.info("subscription activated: device=%s customer=%s sub=%s", device_id, customer_id, sub_id)
     elif event_type == "checkout.session.async_payment_failed":
         obj            = event["data"]["object"]
         session_id     = obj.get("id")
         payment_status = "failed"
+    elif event_type == "customer.subscription.updated":
+        obj    = event["data"]["object"]
+        sub_id = obj.get("id")
+        status = obj.get("status", "")
+        if sub_id and pool:
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    "UPDATE subscriptions SET stripe_status = $1, updated_at = NOW() WHERE stripe_subscription_id = $2",
+                    status, sub_id,
+                )
+            logger.info("subscription updated: sub=%s status=%s", sub_id, status)
+    elif event_type == "customer.subscription.deleted":
+        obj    = event["data"]["object"]
+        sub_id = obj.get("id")
+        if sub_id and pool:
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    "UPDATE subscriptions SET stripe_status = 'canceled', updated_at = NOW() WHERE stripe_subscription_id = $1",
+                    sub_id,
+                )
+            logger.info("subscription canceled: sub=%s", sub_id)
 
-    if session_id:
+    if session_id and not is_subscription_mode:
         await _finalize_paid_session(session_id, payment_status or "unknown", event_type, source=f"webhook:{event_type}")
     return {"received": True}
 
