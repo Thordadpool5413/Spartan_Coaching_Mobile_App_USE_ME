@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, View, Pressable, StyleSheet, TextInput, ActivityIndicator, Alert, Linking, Image } from 'react-native';
+import { ScrollView, View, Pressable, StyleSheet, TextInput, ActivityIndicator, Alert, Image } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -136,7 +137,7 @@ export default function MoreTab() {
         </View>
 
         <View style={{ marginTop: spacing.xxl, alignItems: 'center', gap: 6 }}>
-          <Pressable onPress={() => Linking.openURL('https://www.linkedin.com/in/nicholas-lynch-coaching')}>
+          <Pressable onPress={() => WebBrowser.openBrowserAsync('https://www.linkedin.com/in/nicholas-lynch-coaching')}>
             <Small style={{ color: palette.primary, fontWeight: '700' }}>Connect with Nick on LinkedIn</Small>
           </Pressable>
           <Small dim style={{ textAlign: 'center' }}>© Spartan Coaching · spartanhospicecoaching.com</Small>
