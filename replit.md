@@ -81,17 +81,22 @@ eas submit --platform ios --latest
 ### 5. Add testers
 In App Store Connect → your app → TestFlight tab, add internal or external testers.
 
-### Privacy policy requirement
-The App Store requires a publicly accessible privacy policy URL. The app links to:
+### Privacy policy & Terms of Service requirement
+The App Store requires a publicly accessible privacy policy URL and optionally a Terms of Use URL. The app links to:
 ```
-https://spartanhospicecoaching.com/privacy
+https://spartanhospicecoaching.com/privacy   ← Privacy Policy (required)
+https://spartanhospicecoaching.com/terms     ← Terms of Service (App Store Connect "Terms of Use" field)
 ```
-**You must host a privacy policy page at that URL before App Store review.** The in-app Legal screen (`frontend/app/legal.tsx`) already contains the full policy text you can use.
+**You must host both pages at those URLs before App Store review.** The in-app Legal screen (`frontend/app/legal.tsx`) already contains the full policy text you can use.
+
+In App Store Connect → your app → App Information, enter the Terms of Use URL in the **"Terms of Use URL"** field alongside the Privacy Policy URL.
 
 ## Production checklist
 
 - [ ] Replace `ADMIN_TOKEN` with a strong random secret (currently defaults to `spartan-admin`)
 - [ ] Host privacy policy at `https://spartanhospicecoaching.com/privacy`
+- [ ] Host Terms of Service at `https://spartanhospicecoaching.com/terms`
+- [ ] Enter Terms of Service URL in App Store Connect → App Information → "Terms of Use URL" field
 - [ ] Point `EXPO_PUBLIC_BACKEND_URL` to a stable production backend URL
 - [ ] Verify Resend sending domain (`spartanhospicecoaching.com`) in the Resend dashboard
 - [ ] Fill in Apple credentials in `frontend/eas.json`

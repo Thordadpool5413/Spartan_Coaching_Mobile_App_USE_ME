@@ -7,6 +7,7 @@ import { palette, radius, spacing } from '../theme';
 import { Card, GhostButton, H1, H3, Body, Small, SectionLabel } from '../components/UI';
 
 const PRIVACY_POLICY_URL = 'https://spartanhospicecoaching.com/privacy';
+const TERMS_URL = 'https://spartanhospicecoaching.com/terms';
 
 type LegalSection = {
   id: string;
@@ -170,6 +171,17 @@ export default function LegalScreen() {
             <Ionicons name="globe-outline" size={16} color={palette.primary} />
             <Small style={{ color: palette.primary, fontWeight: '600' }}>
               View full Privacy Policy online
+            </Small>
+            <Ionicons name="open-outline" size={14} color={palette.primary} />
+          </Pressable>
+          <Pressable
+            testID="legal-terms-url"
+            onPress={() => Linking.openURL(TERMS_URL)}
+            style={styles.privacyLink}
+          >
+            <Ionicons name="document-text-outline" size={16} color={palette.primary} />
+            <Small style={{ color: palette.primary, fontWeight: '600' }}>
+              View full Terms of Service online
             </Small>
             <Ionicons name="open-outline" size={14} color={palette.primary} />
           </Pressable>

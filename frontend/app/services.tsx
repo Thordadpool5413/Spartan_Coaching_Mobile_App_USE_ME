@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -43,6 +44,8 @@ type Service = {
   /** Service interest tag prefilled when user requests a quote. */
   quoteTag: string;
 };
+
+const TERMS_URL = 'https://spartanhospicecoaching.com/terms';
 
 const INDIVIDUAL_SERVICES: Service[] = [
   {
@@ -529,6 +532,17 @@ export default function ServicesScreen() {
             <Small dim style={{ textAlign: 'center', marginTop: spacing.s }}>
               Secure payment via Stripe. You will receive a receipt by email.
             </Small>
+            <Pressable
+              testID="book-tos"
+              onPress={() => Linking.openURL(TERMS_URL)}
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: spacing.xs ?? 4 }}
+            >
+              <Small dim style={{ textAlign: 'center' }}>
+                By continuing you agree to our{' '}
+              </Small>
+              <Small style={{ color: palette.primary, fontWeight: '600' }}>Terms of Service</Small>
+              <Ionicons name="open-outline" size={11} color={palette.primary} />
+            </Pressable>
           </View>
         </View>
       </Modal>
