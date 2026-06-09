@@ -1,11 +1,41 @@
-import { Stack } from 'expo-router';
+import { useEffect } from 'react';
+import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { View } from 'react-native';
+import { View, Linking, Platform } from 'react-native';
 import { palette } from '../theme';
 
+function usePaymentDeepLink() {
+  const router = useRouter();
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+
+    const handleUrl = (url: string) => {
+      if (!url) return;
+      try {
+        const parsed = new URL(url);
+        if (parsed.hostname === 'payment-success') {
+          const sessionId = parsed.searchParams.get('session_id') || '';
+          router.push({ pathname: '/payment-success', params: { session_id: sessionId } } as any);
+        }
+      } catch {}
+    };
+
+    // Handle URLs when app is already open (background → foreground)
+    const sub = Linking.addEventListener('url', (e) => handleUrl(e.url));
+
+    // Handle cold-start URL (app was killed, opened via deep link)
+    Linking.getInitialURL().then((url) => { if (url) handleUrl(url); });
+
+    return () => sub.remove();
+  }, [router]);
+}
+
 export default function RootLayout() {
+  usePaymentDeepLink();
+
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: palette.bg }}>
       <SafeAreaProvider>
