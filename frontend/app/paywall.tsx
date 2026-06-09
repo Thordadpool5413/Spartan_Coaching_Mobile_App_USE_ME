@@ -18,7 +18,7 @@ const BULLETS = [
   },
   {
     icon: 'shield-checkmark' as const,
-    text: 'Practice objection handling with an AI that knows every pushback you'll face in the field',
+    text: "Practice objection handling with an AI that knows every pushback you'll face in the field",
   },
   {
     icon: 'bulb' as const,

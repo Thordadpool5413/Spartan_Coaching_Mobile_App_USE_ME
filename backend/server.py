@@ -19,7 +19,7 @@ load_dotenv()
 
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field, EmailStr
 
 import asyncpg
@@ -81,6 +81,14 @@ pool: Optional[asyncpg.Pool] = None
 # ---------- App ----------
 app = FastAPI(title="Spartan Coaching API")
 api = APIRouter(prefix="/api")
+
+
+@app.exception_handler(HTTPException)
+async def _http_exc_handler(request: Request, exc: HTTPException):
+    """Return flat JSON for 402 subscription errors; standard envelope for everything else."""
+    if exc.status_code == 402 and isinstance(exc.detail, dict):
+        return JSONResponse(status_code=402, content=exc.detail)
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
 app.add_middleware(
     CORSMiddleware,
@@ -1047,13 +1055,15 @@ def rate_limit_ai(request: Request, device_id: Optional[str] = None) -> None:
 
 async def check_subscription(request: Request, device_id_body: Optional[str] = None) -> None:
     """Gate AI features behind subscription. Raises 402 if trial expired and not subscribed."""
+    header_id = request.headers.get("X-Device-ID")
+    device_id = (header_id or device_id_body or "").strip()
+
+    if not device_id:
+        # Fail closed — no anonymous access to paid AI features
+        raise HTTPException(status_code=401, detail="Device identification required.")
+
     if not pool:
         return  # No DB — allow (dev / cold start)
-
-    header_id = request.headers.get("X-Device-ID")
-    device_id = header_id or device_id_body
-    if not device_id:
-        return  # No device ID — allow (graceful degradation)
 
     now = datetime.now(timezone.utc)
     async with pool.acquire() as conn:
