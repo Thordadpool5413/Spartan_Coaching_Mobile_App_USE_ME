@@ -1,8 +1,22 @@
-import React from 'react';
-import { View, Text, StyleSheet, ViewStyle, TextStyle, Pressable } from 'react-native';
+import React, { useRef } from 'react';
+import { View, Text, StyleSheet, ViewStyle, TextStyle, Pressable, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { palette, radius, shadow, spacing, typography } from '../theme';
+
+// ─── Animated press scale helper ──────────────────────────────────────────────
+
+function useSpringScale(toValue = 0.97) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const pressIn = () =>
+    Animated.spring(scale, { toValue, useNativeDriver: true, tension: 280, friction: 18 }).start();
+  const pressOut = () =>
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: 280, friction: 18 }).start();
+  return { scale, pressIn, pressOut };
+}
+
+// ─── Card ─────────────────────────────────────────────────────────────────────
 
 export function Card({ style, children, testID }: { style?: ViewStyle; children: React.ReactNode; testID?: string }) {
   return (
@@ -11,6 +25,8 @@ export function Card({ style, children, testID }: { style?: ViewStyle; children:
     </View>
   );
 }
+
+// ─── PrimaryButton ────────────────────────────────────────────────────────────
 
 export function PrimaryButton({
   label,
@@ -27,25 +43,40 @@ export function PrimaryButton({
   style?: ViewStyle;
   icon?: React.ReactNode;
 }) {
+  const { scale, pressIn, pressOut } = useSpringScale(0.97);
+
   return (
-    <Pressable
-      testID={testID}
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => [{ opacity: disabled ? 0.45 : pressed ? 0.85 : 1 }, style]}
-    >
-      <LinearGradient
-        colors={[palette.primary, palette.primaryDark]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.primaryBtn}
+    <Animated.View style={[styles.primaryShadow, { transform: [{ scale }], opacity: disabled ? 0.45 : 1 }, style]}>
+      <Pressable
+        testID={testID}
+        disabled={disabled}
+        onPress={onPress}
+        onPressIn={() => {
+          if (!disabled) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            pressIn();
+          }
+        }}
+        onPressOut={pressOut}
+        style={{ borderRadius: radius.md, overflow: 'hidden' }}
       >
-        {icon}
-        <Text style={styles.primaryBtnText}>{label}</Text>
-      </LinearGradient>
-    </Pressable>
+        <LinearGradient
+          colors={[palette.primary, palette.primaryDark]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.primaryBtn}
+        >
+          {/* Inner top highlight */}
+          <View style={[styles.btnHighlight, { pointerEvents: 'none' }]} />
+          {icon}
+          <Text style={styles.primaryBtnText}>{label}</Text>
+        </LinearGradient>
+      </Pressable>
+    </Animated.View>
   );
 }
+
+// ─── GhostButton ─────────────────────────────────────────────────────────────
 
 export function GhostButton({
   label,
@@ -60,13 +91,30 @@ export function GhostButton({
   style?: ViewStyle;
   icon?: React.ReactNode;
 }) {
+  const { scale, pressIn, pressOut } = useSpringScale(0.97);
+
   return (
-    <Pressable testID={testID} onPress={onPress} style={({ pressed }) => [styles.ghostBtn, { opacity: pressed ? 0.7 : 1 }, style]}>
-      {icon}
-      <Text style={styles.ghostBtnText}>{label}</Text>
-    </Pressable>
+    <Animated.View style={[{ transform: [{ scale }] }, style]}>
+      <Pressable
+        testID={testID}
+        onPress={onPress}
+        onPressIn={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          pressIn();
+        }}
+        onPressOut={pressOut}
+        style={styles.ghostBtn}
+      >
+        {/* Inner top highlight */}
+        <View style={[styles.ghostHighlight, { pointerEvents: 'none' }]} />
+        {icon}
+        <Text style={styles.ghostBtnText}>{label}</Text>
+      </Pressable>
+    </Animated.View>
   );
 }
+
+// ─── Pill ─────────────────────────────────────────────────────────────────────
 
 export function Pill({ label, color = palette.primary, testID, style }: { label: string; color?: string; testID?: string; style?: ViewStyle }) {
   return (
@@ -76,13 +124,24 @@ export function Pill({ label, color = palette.primary, testID, style }: { label:
   );
 }
 
-export function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <Text style={styles.sectionLabel}>{String(children).toUpperCase()}</Text>;
+// ─── SectionLabel ─────────────────────────────────────────────────────────────
+
+export function SectionLabel({ children, style }: { children: React.ReactNode; style?: TextStyle }) {
+  return (
+    <View style={styles.sectionLabelRow}>
+      <View style={styles.sectionLabelBar} />
+      <Text style={[styles.sectionLabel, style]}>{String(children).toUpperCase()}</Text>
+    </View>
+  );
 }
 
+// ─── Divider ──────────────────────────────────────────────────────────────────
+
 export function Divider({ style }: { style?: ViewStyle }) {
-  return <View style={[{ height: 1, backgroundColor: palette.divider }, style]} />;
+  return <View style={[{ height: StyleSheet.hairlineWidth, backgroundColor: palette.divider }, style]} />;
 }
+
+// ─── Text primitives ──────────────────────────────────────────────────────────
 
 export function H1({ children, style }: { children: React.ReactNode; style?: TextStyle }) {
   return <Text style={[typography.h1, { color: palette.text }, style]}>{children}</Text>;
@@ -93,12 +152,14 @@ export function H2({ children, style }: { children: React.ReactNode; style?: Tex
 export function H3({ children, style }: { children: React.ReactNode; style?: TextStyle }) {
   return <Text style={[typography.h3, { color: palette.text }, style]}>{children}</Text>;
 }
-export function Body({ children, style, dim }: { children: React.ReactNode; style?: TextStyle; dim?: boolean }) {
-  return <Text style={[typography.body, { color: dim ? palette.textDim : palette.text }, style]}>{children}</Text>;
+export function Body({ children, style, dim, numberOfLines }: { children: React.ReactNode; style?: TextStyle; dim?: boolean; numberOfLines?: number }) {
+  return <Text numberOfLines={numberOfLines} style={[typography.body, { color: dim ? palette.textDim : palette.text }, style]}>{children}</Text>;
 }
 export function Small({ children, style, dim }: { children: React.ReactNode; style?: TextStyle; dim?: boolean }) {
   return <Text style={[typography.small, { color: dim ? palette.textDim : palette.text }, style]}>{children}</Text>;
 }
+
+// ─── PhiNotice ────────────────────────────────────────────────────────────────
 
 export function PhiNotice({ style }: { style?: ViewStyle }) {
   return (
@@ -111,47 +172,76 @@ export function PhiNotice({ style }: { style?: ViewStyle }) {
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   card: {
     backgroundColor: palette.card,
     borderColor: palette.cardBorder,
+    borderTopColor: palette.glassEdgeTop,
     borderWidth: 1,
     borderRadius: radius.lg,
     padding: spacing.xl,
-    ...shadow.sm,
+    ...shadow.md,
+  },
+  // Primary button
+  primaryShadow: {
+    borderRadius: radius.md,
+    ...shadow.glowButton,
   },
   primaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
+    paddingVertical: 16,
     paddingHorizontal: spacing.xl,
-    borderRadius: radius.md,
     gap: 8,
+    minHeight: 52,
+  },
+  btnHighlight: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.20)',
   },
   primaryBtnText: {
     color: '#fff',
     fontSize: 15,
     fontWeight: '800',
-    letterSpacing: 0.3,
+    letterSpacing: 0.1,
   },
+  // Ghost button
   ghostBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    paddingVertical: 13,
+    paddingVertical: 15,
     paddingHorizontal: spacing.xl,
     borderRadius: radius.md,
     borderWidth: 1,
+    borderTopColor: palette.glassEdgeTop,
     borderColor: palette.cardBorderStrong,
     backgroundColor: palette.bgElev1,
+    minHeight: 52,
+    overflow: 'hidden',
+  },
+  ghostHighlight: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.10)',
   },
   ghostBtnText: {
     color: palette.text,
     fontSize: 15,
     fontWeight: '700',
   },
+  // Pill
   pill: {
     borderRadius: radius.pill,
     paddingHorizontal: 10,
@@ -165,11 +255,24 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
+  // Section label
+  sectionLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: spacing.s,
+  },
+  sectionLabelBar: {
+    width: 3,
+    height: 13,
+    borderRadius: 2,
+    backgroundColor: palette.primary,
+    opacity: 0.85,
+  },
   sectionLabel: {
     fontSize: 11,
     color: palette.primary,
     fontWeight: '800',
     letterSpacing: 1.4,
-    marginBottom: spacing.s,
   },
 });
