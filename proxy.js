@@ -10,6 +10,14 @@ const BACKEND_PORT = 8000;
 const METRO_PORT = 3000;
 const PROXY_PORT = 5000;
 
+process.on('uncaughtException', (err) => {
+  console.error('Proxy uncaughtException (continuing):', err.message);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Proxy unhandledRejection (continuing):', reason);
+});
+
 function forward(req, res, targetPort) {
   const options = {
     hostname: 'localhost',
@@ -27,6 +35,10 @@ function forward(req, res, targetPort) {
     if (!res.headersSent) res.writeHead(502);
     res.end(`Bad gateway: ${err.message}`);
   });
+  req.on('error', (err) => {
+    console.error('Request error:', err.message);
+    proxy.destroy();
+  });
   req.pipe(proxy, { end: true });
 }
 
@@ -35,9 +47,17 @@ const server = http.createServer((req, res) => {
   forward(req, res, isApi ? BACKEND_PORT : METRO_PORT);
 });
 
+server.on('error', (err) => {
+  console.error('Server error (continuing):', err.message);
+});
+
 // WebSocket upgrade (for Metro HMR)
 server.on('upgrade', (req, socket, head) => {
   const targetPort = METRO_PORT;
+  socket.on('error', (err) => {
+    console.error('WS client socket error:', err.message);
+    target && target.destroy();
+  });
   const target = net.createConnection(targetPort, 'localhost', () => {
     target.write(
       `${req.method} ${req.url} HTTP/1.1\r\nHost: localhost:${targetPort}\r\n` +
@@ -48,7 +68,10 @@ server.on('upgrade', (req, socket, head) => {
     socket.pipe(target);
     target.pipe(socket);
   });
-  target.on('error', (err) => { console.error('WS proxy error:', err.message); socket.destroy(); });
+  target.on('error', (err) => {
+    console.error('WS proxy error:', err.message);
+    socket.destroy();
+  });
 });
 
 server.listen(PROXY_PORT, '0.0.0.0', () => {
