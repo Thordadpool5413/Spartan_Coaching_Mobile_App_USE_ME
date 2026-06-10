@@ -60,10 +60,7 @@ export default function HomeScreen() {
             <Text style={styles.badgeText}>{heroBadge}</Text>
             <Ionicons name="arrow-forward" size={12} color="#86efac" />
           </View>
-          <View style={{ alignSelf: 'flex-start', position: 'relative' }}>
-            <View style={styles.logoGlow} />
-            <StampSlam source={SPARTAN_LOGO} width={220} height={132} onceKey="home_hero" style={{ marginBottom: spacing.m, marginLeft: -10 }} />
-          </View>
+          <StampSlam source={SPARTAN_LOGO} width={220} height={132} onceKey="home_hero" style={{ alignSelf: 'flex-start', marginBottom: spacing.m, marginLeft: -10 }} />
           <Text style={styles.heroTitle}>Hospice Sales{'\n'}Coaching</Text>
           <Text style={styles.heroSub}>
             Eligible patients are not receiving hospice care because the right conversations are not happening. Spartan Coaching exists to close that gap, one prepared visit at a time.
@@ -304,20 +301,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 4,
     overflow: 'hidden',
-  },
-  logoGlow: {
-    position: 'absolute',
-    width: 180,
-    height: 60,
-    borderRadius: 90,
-    backgroundColor: 'rgba(239,68,68,0.10)',
-    top: 30,
-    left: 5,
-    shadowColor: palette.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.55,
-    shadowRadius: 32,
-    elevation: 0,
   },
   toolTitle: { color: palette.text, fontSize: 14, fontWeight: '800', letterSpacing: -0.2 },
   toolDesc: { color: palette.textDim, fontSize: 12, lineHeight: 17 },
