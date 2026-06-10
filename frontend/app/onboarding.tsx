@@ -10,14 +10,14 @@ import { palette, spacing, radius } from '../theme';
 export const ONBOARDING_KEY = 'onboarding_v1_complete';
 const { width: SW } = Dimensions.get('window');
 
-const SPARTAN_CIRCLE = require('../assets/images/spartan-circle-logo.png');
+const SPARTAN_STAMP = require('../assets/images/spartan-stamp-logo.png');
 const ONBOARDING_AI = require('../assets/images/onboarding-ai.png');
 const ONBOARDING_DISCIPLINE = require('../assets/images/onboarding-discipline.png');
 
 const SLIDES = [
   {
-    image: SPARTAN_CIRCLE,
-    imageStyle: { width: 200, height: 200, borderRadius: 100 },
+    image: SPARTAN_STAMP,
+    imageStyle: { width: 300, height: 300 },
     bg: ['#1a0808', '#0a0a0b'] as const,
     title: 'Built for hospice\nsales professionals',
     body: 'Spartan Coaching closes the gap between clinical knowledge and sales execution — one prepared conversation at a time.',
@@ -103,10 +103,8 @@ export default function OnboardingScreen() {
         {SLIDES.map((s, i) => (
           <LinearGradient key={i} colors={s.bg} style={[styles.slide, { width: SW }]}>
             {i === 0 ? (
-              <View style={styles.logoGlowOuter}>
-                <View style={styles.logoRing}>
-                  <Image source={s.image} style={styles.logoRingImage} resizeMode="contain" />
-                </View>
+              <View style={styles.stampGlow}>
+                <Image source={s.image} style={styles.stampImage} resizeMode="contain" />
               </View>
             ) : (
               <Image source={s.image} style={[styles.slideImage, s.imageStyle]} resizeMode="contain" />
@@ -188,30 +186,17 @@ const styles = StyleSheet.create({
   slideImage: {
     marginBottom: spacing.xxxl,
   },
-  logoGlowOuter: {
+  stampGlow: {
     marginBottom: spacing.xxxl,
-    borderRadius: 108,
     shadowColor: palette.primary,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.55,
-    shadowRadius: 28,
+    shadowOpacity: 0.45,
+    shadowRadius: 32,
     elevation: 0,
   },
-  logoRing: {
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    backgroundColor: '#130303',
-    borderWidth: 1.5,
-    borderTopColor: 'rgba(255,255,255,0.14)',
-    borderColor: 'rgba(239,68,68,0.45)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  logoRingImage: {
-    width: 220,
-    height: 220,
+  stampImage: {
+    width: 300,
+    height: 300,
   },
   title: {
     color: palette.text,
