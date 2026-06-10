@@ -102,11 +102,15 @@ export default function OnboardingScreen() {
       >
         {SLIDES.map((s, i) => (
           <LinearGradient key={i} colors={s.bg} style={[styles.slide, { width: SW }]}>
-            <Image
-              source={s.image}
-              style={[styles.slideImage, s.imageStyle]}
-              resizeMode="contain"
-            />
+            {i === 0 ? (
+              <View style={styles.logoGlowOuter}>
+                <View style={styles.logoRing}>
+                  <Image source={s.image} style={styles.logoRingImage} resizeMode="contain" />
+                </View>
+              </View>
+            ) : (
+              <Image source={s.image} style={[styles.slideImage, s.imageStyle]} resizeMode="contain" />
+            )}
             <Text style={styles.title}>{s.title}</Text>
             <Text style={styles.body}>{s.body}</Text>
           </LinearGradient>
@@ -183,6 +187,31 @@ const styles = StyleSheet.create({
   },
   slideImage: {
     marginBottom: spacing.xxxl,
+  },
+  logoGlowOuter: {
+    marginBottom: spacing.xxxl,
+    borderRadius: 108,
+    shadowColor: palette.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.55,
+    shadowRadius: 28,
+    elevation: 0,
+  },
+  logoRing: {
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: '#130303',
+    borderWidth: 1.5,
+    borderTopColor: 'rgba(255,255,255,0.14)',
+    borderColor: 'rgba(239,68,68,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  logoRingImage: {
+    width: 220,
+    height: 220,
   },
   title: {
     color: palette.text,
