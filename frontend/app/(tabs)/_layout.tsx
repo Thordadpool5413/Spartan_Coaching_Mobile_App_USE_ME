@@ -1,5 +1,7 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { StyleSheet } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { palette } from '../../theme';
 
 export default function TabLayout() {
@@ -9,13 +11,21 @@ export default function TabLayout() {
         headerShown: false,
         tabBarHideOnKeyboard: true,
         tabBarStyle: {
-          backgroundColor: palette.bgElev1,
-          borderTopColor: palette.divider,
-          borderTopWidth: 1,
+          backgroundColor: 'transparent',
+          borderTopColor: palette.glassEdge,
+          borderTopWidth: StyleSheet.hairlineWidth,
           paddingTop: 6,
           paddingBottom: 6,
           height: 64,
+          position: 'absolute',
         },
+        tabBarBackground: () => (
+          <BlurView
+            intensity={70}
+            tint="dark"
+            style={[StyleSheet.absoluteFill, { backgroundColor: palette.glassBg }]}
+          />
+        ),
         tabBarActiveTintColor: palette.primary,
         tabBarInactiveTintColor: palette.textMuted,
         tabBarLabelStyle: { fontSize: 11, fontWeight: '700', letterSpacing: 0.3 },

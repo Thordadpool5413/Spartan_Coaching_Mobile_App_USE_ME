@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, View, StyleSheet, Pressable, Platform, Linking } from 'react-native';
+import { ScrollView, View, StyleSheet, Pressable, Platform, Linking, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -76,10 +76,10 @@ export default function PaywallScreen() {
         {/* Header gradient */}
         <LinearGradient colors={['#1a0808', palette.bg]} style={styles.hero}>
           <View style={styles.logoWrap}>
-            <View style={styles.logoRing}>
-              {/* eslint-disable-next-line @typescript-eslint/no-require-imports */}
-              {/* logo image intentionally omitted here for perf; icon used instead */}
-              <Ionicons name="shield-checkmark" size={36} color={palette.primary} />
+            <View style={styles.logoGlowOuter}>
+              <View style={styles.logoRing}>
+                <Image source={SPARTAN_CIRCLE} style={{ width: 68, height: 68 }} resizeMode="contain" />
+              </View>
             </View>
           </View>
 
@@ -183,15 +183,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logoWrap: { marginBottom: spacing.l },
+  logoGlowOuter: {
+    shadowColor: palette.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.50,
+    shadowRadius: 28,
+    elevation: 0,
+    borderRadius: 52,
+  },
   logoRing: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 104,
+    height: 104,
+    borderRadius: 52,
     backgroundColor: palette.primaryTint,
-    borderWidth: 1,
-    borderColor: palette.primary + '40',
+    borderWidth: 1.5,
+    borderTopColor: 'rgba(255,255,255,0.12)',
+    borderColor: 'rgba(239,68,68,0.40)',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   headline: {
     textAlign: 'center',
