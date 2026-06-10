@@ -18,28 +18,84 @@ process.on('unhandledRejection', (reason) => {
   console.error('Proxy unhandledRejection (continuing):', reason);
 });
 
-function forward(req, res, targetPort) {
-  const options = {
-    hostname: 'localhost',
-    port: targetPort,
-    path: req.url,
-    method: req.method,
-    headers: { ...req.headers, host: `localhost:${targetPort}` },
-  };
-  const proxy = http.request(options, (proxyRes) => {
-    res.writeHead(proxyRes.statusCode, proxyRes.headers);
-    proxyRes.pipe(res, { end: true });
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * Try forwarding once. Returns true on success, false on ECONNREFUSED
+ * (so the caller can retry), throws on any other error.
+ */
+function tryForward(req, res, targetPort, bodyBuffer) {
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: 'localhost',
+      port: targetPort,
+      path: req.url,
+      method: req.method,
+      headers: { ...req.headers, host: `localhost:${targetPort}` },
+    };
+    const proxy = http.request(options, (proxyRes) => {
+      if (!res.headersSent) {
+        res.writeHead(proxyRes.statusCode, proxyRes.headers);
+      }
+      proxyRes.pipe(res, { end: true });
+      resolve(true);
+    });
+    proxy.on('error', (err) => {
+      if (err.code === 'ECONNREFUSED') {
+        resolve(false);
+      } else {
+        reject(err);
+      }
+    });
+    if (bodyBuffer) {
+      proxy.end(bodyBuffer);
+    } else {
+      proxy.end();
+    }
   });
-  proxy.on('error', (err) => {
-    console.error(`Proxy error forwarding to :${targetPort}:`, err.message);
-    if (!res.headersSent) res.writeHead(502);
-    res.end(`Bad gateway: ${err.message}`);
-  });
-  req.on('error', (err) => {
-    console.error('Request error:', err.message);
-    proxy.destroy();
-  });
-  req.pipe(proxy, { end: true });
+}
+
+async function forward(req, res, targetPort) {
+  // Buffer the request body so we can replay on retry
+  const chunks = [];
+  req.on('data', (chunk) => chunks.push(chunk));
+  req.on('error', () => {});
+  await new Promise((r) => req.on('end', r));
+  const bodyBuffer = chunks.length ? Buffer.concat(chunks) : null;
+
+  const maxAttempts = targetPort === METRO_PORT ? 20 : 3;
+  const retryDelay = 500; // ms between retries
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const ok = await tryForward(req, res, targetPort, bodyBuffer);
+      if (ok) return;
+      // ECONNREFUSED — target not ready yet
+      if (attempt === maxAttempts) break;
+      if (attempt === 1) console.log(`Metro not ready, waiting...`);
+      await sleep(retryDelay);
+    } catch (err) {
+      console.error(`Proxy error forwarding to :${targetPort}:`, err.message);
+      if (!res.headersSent) res.writeHead(502);
+      res.end(`Bad gateway: ${err.message}`);
+      return;
+    }
+  }
+
+  // All retries exhausted
+  if (!res.headersSent) {
+    res.writeHead(503, { 'Content-Type': 'text/html; charset=utf-8', 'Retry-After': '2' });
+  }
+  res.end(`<!doctype html><html><head><meta http-equiv="refresh" content="2"><style>
+    body{margin:0;background:#09090b;color:#ef4444;font-family:system-ui;display:flex;
+    align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:16px}
+    p{color:#a1a1aa;font-size:14px;margin:0}
+  </style></head><body>
+    <div style="font-size:24px;font-weight:800">Starting up…</div>
+    <p>Expo Metro bundler is loading. This page will refresh automatically.</p>
+  </body></html>`);
 }
 
 const server = http.createServer((req, res) => {
