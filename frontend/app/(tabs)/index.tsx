@@ -10,7 +10,7 @@ import { StampSlam } from '../../components/StampSlam';
 import { getTodayDrill, getDrillStats, DrillToday, DrillStats, getHeroBadge } from '../../lib/api';
 import { getDeviceId } from '../../lib/device';
 
-const SPARTAN_LOGO = require('../../assets/images/spartan-logo.png');
+const SPARTAN_LOGO = require('../../assets/images/spartan-stamp-logo.png');
 
 const TOOLS = [
   { route: '/ask', icon: 'sparkles' as const, title: 'Ask a Hospice Expert', desc: 'Instant expert answers' },
@@ -60,7 +60,7 @@ export default function HomeScreen() {
             <Text style={styles.badgeText}>{heroBadge}</Text>
             <Ionicons name="arrow-forward" size={12} color="#86efac" />
           </View>
-          <StampSlam source={SPARTAN_LOGO} width={220} height={132} onceKey="home_hero" style={{ alignSelf: 'flex-start', marginBottom: spacing.m, marginLeft: -10 }} />
+          <StampSlam source={SPARTAN_LOGO} width={300} height={300} onceKey="home_hero" style={{ alignSelf: 'center', marginBottom: spacing.s }} />
           <Text style={styles.heroTitle}>Hospice Sales{'\n'}Coaching</Text>
           <Text style={styles.heroSub}>
             Eligible patients are not receiving hospice care because the right conversations are not happening. Spartan Coaching exists to close that gap, one prepared visit at a time.
