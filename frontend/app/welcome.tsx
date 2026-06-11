@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Pressable, Image } from 'react-native';
+import { View, StyleSheet, Pressable, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -51,23 +51,20 @@ export default function WelcomeScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: palette.bg }}>
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.header}>
-          <Image source={splatterLogo} style={styles.logo} resizeMode="contain" />
-          <H1 style={styles.headline}>Before you begin</H1>
-          <H2 style={styles.sub}>A few things to know</H2>
-        </View>
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.logoSection}>
+        <Image source={splatterLogo} style={styles.logo} resizeMode="contain" />
+      </View>
+
+      <View style={styles.content}>
+        <H1 style={styles.headline}>Before you begin</H1>
+        <H2 style={styles.sub}>A few things to know</H2>
 
         <View style={styles.points}>
           {TERMS_POINTS.map((p, i) => (
             <View key={i} style={styles.point}>
               <View style={styles.pointIcon}>
-                <Ionicons name={p.icon} size={18} color={palette.primary} />
+                <Ionicons name={p.icon} size={16} color={palette.primary} />
               </View>
               <View style={{ flex: 1 }}>
                 <Body style={styles.pointTitle}>{p.title}</Body>
@@ -81,7 +78,7 @@ export default function WelcomeScreen() {
           <Small style={{ color: palette.primary, fontWeight: '700' }}>View full Terms & Privacy Policy</Small>
           <Ionicons name="open-outline" size={13} color={palette.primary} />
         </Pressable>
-      </ScrollView>
+      </View>
 
       <View style={styles.footer}>
         <PrimaryButton
@@ -98,37 +95,42 @@ export default function WelcomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: {
-    paddingHorizontal: spacing.l,
-    paddingTop: spacing.xxxl,
-    paddingBottom: spacing.xl,
+  safe: {
+    flex: 1,
+    backgroundColor: palette.bg,
   },
-  header: {
+  logoSection: {
+    flex: 1,
     alignItems: 'center',
-    marginBottom: spacing.xxxl,
+    justifyContent: 'center',
+    paddingHorizontal: 0,
   },
   logo: {
-    width: '92%' as any,
-    height: 300,
-    marginBottom: spacing.m,
+    width: '100%' as any,
+    height: '100%' as any,
     transform: [{ rotate: '-2deg' }],
     opacity: 0.93,
   },
+  content: {
+    paddingHorizontal: spacing.l,
+    paddingBottom: spacing.s,
+  },
   headline: {
     textAlign: 'center',
-    fontSize: 34,
+    fontSize: 30,
     fontWeight: '900',
     letterSpacing: -1,
-    marginBottom: spacing.s,
+    marginBottom: spacing.xs,
   },
   sub: {
     textAlign: 'center',
     color: palette.textDim,
     fontWeight: '500',
+    marginBottom: spacing.l,
   },
   points: {
-    gap: spacing.xl,
-    marginBottom: spacing.xl,
+    gap: spacing.m,
+    marginBottom: spacing.m,
   },
   point: {
     flexDirection: 'row',
@@ -136,9 +138,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   pointIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     backgroundColor: 'rgba(239,68,68,0.1)',
     borderWidth: 1,
     borderColor: 'rgba(239,68,68,0.25)',
@@ -149,18 +151,18 @@ const styles = StyleSheet.create({
   },
   pointTitle: {
     fontWeight: '700',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   pointBody: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 18,
   },
   legalLink: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     justifyContent: 'center',
-    paddingVertical: spacing.m,
+    paddingVertical: spacing.s,
   },
   footer: {
     paddingHorizontal: spacing.l,
