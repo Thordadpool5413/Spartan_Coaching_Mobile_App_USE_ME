@@ -3,7 +3,7 @@ import { ScrollView, View, Text, StyleSheet, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { palette, radius, spacing, typography } from '../../theme';
 import { Card, PrimaryButton, GhostButton, H2, H3, Body, Small, SectionLabel } from '../../components/UI';
 import { StampSlam } from '../../components/StampSlam';
@@ -22,6 +22,7 @@ const TOOLS = [
 ];
 
 export default function HomeScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const [drill, setDrill] = useState<DrillToday | null>(null);
   const [stats, setStats] = useState<DrillStats | null>(null);
@@ -47,7 +48,7 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: palette.bg }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 80 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {/* Hero */}
         <LinearGradient
           colors={['#1a0808', '#0a0a0b']}
