@@ -468,11 +468,13 @@ _CREATE_TABLES = [
         stripe_customer_id     TEXT,
         stripe_subscription_id TEXT,
         stripe_status          TEXT,
+        customer_email         TEXT,
         created_at             TIMESTAMPTZ DEFAULT NOW(),
         updated_at             TIMESTAMPTZ DEFAULT NOW()
     )
     """,
     "ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS team_code TEXT",
+    "ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS customer_email TEXT",
     """
     CREATE TABLE IF NOT EXISTS team_licenses (
         id                     SERIAL PRIMARY KEY,
@@ -1968,6 +1970,81 @@ def _send_purchase_email(record: dict) -> Optional[str]:
         return str(exc)
 
 
+def _send_trial_expiry_email(customer_email: str, trial_end_ts: int) -> Optional[str]:
+    """Send a trial-expiry reminder email to the subscriber.
+
+    Args:
+        customer_email: Recipient email address obtained from Stripe Customer object.
+        trial_end_ts:   Unix timestamp when the trial ends (from subscription.trial_end).
+    Returns:
+        None on success, error string on failure.
+    """
+    if not RESEND_API_KEY:
+        return "resend not configured"
+    if not customer_email or "@" not in customer_email:
+        return "no valid email address"
+    try:
+        from datetime import datetime, timezone as _tz
+        trial_end_dt = datetime.fromtimestamp(trial_end_ts, tz=_tz.utc)
+        now_utc      = datetime.now(tz=_tz.utc)
+        delta        = trial_end_dt - now_utc
+        total_hours  = max(0, int(delta.total_seconds() // 3600))
+        if total_hours >= 24:
+            time_left_str = f"{total_hours // 24} day{'s' if total_hours // 24 != 1 else ''}"
+        elif total_hours > 0:
+            time_left_str = f"{total_hours} hour{'s' if total_hours != 1 else ''}"
+        else:
+            time_left_str = "very soon"
+
+        html = f"""
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#0a0a0b;color:#e5e5e5;padding:40px 24px;max-width:600px;margin:0 auto;">
+  <p style="font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#ef4444;margin:0 0 16px;">Spartan Coaching</p>
+  <h1 style="font-size:28px;font-weight:800;color:#fff;margin:0 0 8px;">Your free trial ends in {time_left_str}.</h1>
+  <p style="color:#a3a3ad;margin:0 0 32px;">Don&rsquo;t lose access to the AI tools that are sharpening your sales edge.</p>
+
+  <div style="background:#141417;border:1px solid #26262c;border-radius:16px;padding:24px;margin-bottom:28px;">
+    <p style="font-size:13px;color:#a3a3ad;margin:0 0 12px;">Your trial gives you full access to:</p>
+    <ul style="color:#e5e5e5;padding-left:20px;line-height:1.8;margin:0;">
+      <li>AI Objection Handler</li>
+      <li>Role-Play Scenarios</li>
+      <li>Playbook Generator</li>
+      <li>Eligibility Checker</li>
+    </ul>
+  </div>
+
+  <a href="spartan://paywall"
+     style="display:block;background:#ef4444;color:#fff;font-size:16px;font-weight:800;
+            text-align:center;padding:16px 32px;border-radius:12px;text-decoration:none;
+            letter-spacing:0.5px;margin-bottom:28px;">
+    Upgrade to Pro — Keep Your Access
+  </a>
+
+  <p style="color:#a3a3ad;font-size:14px;line-height:1.6;margin:0 0 28px;">
+    After your trial ends, AI tools will be locked until you subscribe.<br/>
+    Upgrading takes less than a minute and keeps everything uninterrupted.
+  </p>
+
+  <hr style="border:none;border-top:1px solid #26262c;margin:28px 0;"/>
+  <p style="font-size:12px;color:#52525b;margin:0;">
+    Questions? Reply to this email or reach out to
+    <a href="mailto:{CONTACT_EMAIL}" style="color:#ef4444;">{CONTACT_EMAIL}</a>
+  </p>
+</div>"""
+
+        resend.Emails.send({
+            "from":     f"{RESEND_FROM_NAME} <{RESEND_FROM_EMAIL}>",
+            "to":       [customer_email],
+            "subject":  f"Your Spartan Coaching free trial ends in {time_left_str} — upgrade to keep access",
+            "html":     html,
+            "reply_to": CONTACT_EMAIL,
+        })
+        logger.info("trial expiry email sent to %s (trial ends in %s)", customer_email, time_left_str)
+        return None
+    except Exception as exc:
+        logger.exception("trial expiry email failed")
+        return str(exc)
+
+
 async def _finalize_paid_session(session_id: str, payment_status: str, status_val: str, source: str):
     if not pool:
         return
@@ -2566,6 +2643,8 @@ async def stripe_webhook(request: Request):
             else:
                 # ---- Individual Pro subscription ----
                 if device_id and customer_id and pool:
+                    # Capture customer email from checkout session details
+                    _wh_cust_email = (obj.get("customer_details") or {}).get("email") or None
                     # Fetch subscription to capture trialing status and trial_end timestamp
                     _wh_stripe_status = "active"
                     _wh_trial_ends_at = None
@@ -2584,16 +2663,17 @@ async def stripe_webhook(request: Request):
                     async with pool.acquire() as conn:
                         await conn.execute(
                             """INSERT INTO subscriptions
-                                   (device_id, tier, stripe_customer_id, stripe_subscription_id, stripe_status, trial_ends_at)
-                               VALUES ($1, 'pro', $2, $3, $4, $5)
+                                   (device_id, tier, stripe_customer_id, stripe_subscription_id, stripe_status, trial_ends_at, customer_email)
+                               VALUES ($1, 'pro', $2, $3, $4, $5, $6)
                                ON CONFLICT (device_id) DO UPDATE SET
                                    tier                   = 'pro',
                                    stripe_customer_id     = $2,
                                    stripe_subscription_id = $3,
                                    stripe_status          = $4,
                                    trial_ends_at          = COALESCE($5, trial_ends_at),
+                                   customer_email         = COALESCE($6, customer_email),
                                    updated_at             = NOW()""",
-                            device_id, customer_id, sub_id, _wh_stripe_status, _wh_trial_ends_at,
+                            device_id, customer_id, sub_id, _wh_stripe_status, _wh_trial_ends_at, _wh_cust_email,
                         )
                     logger.info("subscription activated: device=%s customer=%s sub=%s status=%s", device_id, customer_id, sub_id, _wh_stripe_status)
     elif event_type == "checkout.session.async_payment_failed":
@@ -2643,6 +2723,39 @@ async def stripe_webhook(request: Request):
                     sub_id,
                 )
             logger.info("subscription canceled: sub=%s", sub_id)
+    elif event_type == "customer.subscription.trial_will_end":
+        obj         = event["data"]["object"]
+        customer_id = obj.get("customer")
+        trial_end   = obj.get("trial_end")
+        if customer_id and trial_end and RESEND_API_KEY:
+            try:
+                _twe_loop = asyncio.get_event_loop()
+                # Try DB-first lookup; avoids a Stripe round-trip when email was captured at checkout
+                _twe_email: Optional[str] = None
+                if pool:
+                    async with pool.acquire() as _twe_conn:
+                        _twe_row = await _twe_conn.fetchrow(
+                            "SELECT customer_email FROM subscriptions WHERE stripe_customer_id = $1",
+                            customer_id,
+                        )
+                        if _twe_row:
+                            _twe_email = _twe_row["customer_email"]
+                # Fall back to Stripe Customer.retrieve if the column is NULL
+                if not _twe_email:
+                    _twe_customer = await _twe_loop.run_in_executor(
+                        None, lambda: stripe_lib.Customer.retrieve(customer_id)
+                    )
+                    _twe_email = _twe_customer.get("email") if _twe_customer else None
+                if _twe_email:
+                    _twe_err = await _twe_loop.run_in_executor(
+                        None, lambda: _send_trial_expiry_email(_twe_email, int(trial_end))
+                    )
+                    if _twe_err:
+                        logger.error("trial expiry email error: %s", _twe_err)
+                else:
+                    logger.warning("trial_will_end: no email for customer=%s", customer_id)
+            except Exception as _twe_exc:
+                logger.error("trial_will_end handler error: %s", _twe_exc)
 
     if session_id and not is_subscription_mode:
         await _finalize_paid_session(session_id, payment_status or "unknown", event_type, source=f"webhook:{event_type}")
