@@ -23,7 +23,6 @@ export default function TabLayout() {
           paddingTop: 6,
           paddingBottom: 6,
           height: 64,
-          position: 'absolute',
         },
         tabBarBackground: () => (
           <BlurView

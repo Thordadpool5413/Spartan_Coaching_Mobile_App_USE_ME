@@ -1,6 +1,6 @@
 import React from 'react';
 import { ScrollView, View, Pressable, StyleSheet } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -53,11 +53,10 @@ const TOOLS = [
 ];
 
 export default function ToolsTab() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: palette.bg }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 80, padding: spacing.l }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ paddingBottom: 24, padding: spacing.l }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <SectionLabel>AI Tools</SectionLabel>
         <H1 style={{ marginBottom: spacing.s }}>Sharpen the craft</H1>
         <Body dim style={{ marginBottom: spacing.xl }}>

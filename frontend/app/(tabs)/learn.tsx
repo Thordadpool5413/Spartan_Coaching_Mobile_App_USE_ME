@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ScrollView, View, Pressable, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { palette, radius, spacing } from '../../theme';
@@ -14,7 +14,6 @@ const ITEMS = [
 ];
 
 export default function LearnTab() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,7 +37,7 @@ export default function LearnTab() {
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: palette.bg }}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: insets.bottom + 80, padding: spacing.l }}
+        contentContainerStyle={{ paddingBottom: 24, padding: spacing.l }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={palette.primary} />}

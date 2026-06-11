@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ScrollView, View, Text, StyleSheet, Pressable } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { palette, radius, spacing } from '../../theme';
@@ -21,7 +21,6 @@ const iconMap: Record<string, keyof typeof Ionicons.glyphMap> = {
 };
 
 export default function MethodScreen() {
-  const insets = useSafeAreaInsets();
   const [method, setMethod] = useState<MethodContent | null>(null);
   const [expandedPillar, setExpandedPillar] = useState<string | null>('discipline');
 
@@ -31,7 +30,7 @@ export default function MethodScreen() {
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: palette.bg }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 80, padding: spacing.l }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ paddingBottom: 24, padding: spacing.l }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={{ marginBottom: spacing.xxl }}>
           <SectionLabel>The Framework</SectionLabel>
           <H1>
