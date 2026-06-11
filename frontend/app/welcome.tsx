@@ -108,8 +108,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xxxl,
   },
   logo: {
-    width: 340,
-    height: 255,
+    width: '92%' as any,
+    height: 300,
     marginBottom: spacing.m,
     transform: [{ rotate: '-2deg' }],
     opacity: 0.93,
