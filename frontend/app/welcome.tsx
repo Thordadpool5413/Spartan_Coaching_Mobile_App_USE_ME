@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, StyleSheet, ScrollView, Pressable, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { palette, spacing, radius } from '../theme';
 import { H1, H2, Body, Small, PrimaryButton } from '../components/UI';
+
+const splatterLogo = require('../assets/spartan-splatter-logo.png');
 
 export const TERMS_ACCEPTED_KEY = 'terms_accepted_v1';
 export const ONBOARDING_KEY     = 'onboarding_v1_complete';
@@ -56,9 +58,7 @@ export default function WelcomeScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <View style={styles.iconCircle}>
-            <Ionicons name="shield-checkmark" size={32} color={palette.primary} />
-          </View>
+          <Image source={splatterLogo} style={styles.logo} resizeMode="contain" />
           <H1 style={styles.headline}>Before you begin</H1>
           <H2 style={styles.sub}>A few things to know</H2>
         </View>
@@ -107,16 +107,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.xxxl,
   },
-  iconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: 'rgba(239,68,68,0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.3)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.xl,
+  logo: {
+    width: 180,
+    height: 180,
+    marginBottom: spacing.l,
   },
   headline: {
     textAlign: 'center',
