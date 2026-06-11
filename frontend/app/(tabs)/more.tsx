@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ScrollView, View, Pressable, StyleSheet, TextInput, ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { palette, radius, spacing, typography } from '../../theme';
@@ -26,6 +26,7 @@ const NAV = [
 ];
 
 export default function MoreTab() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{ interest?: string; message?: string }>();
   const [form, setForm] = useState({
@@ -74,7 +75,7 @@ export default function MoreTab() {
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: palette.bg }}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 120, padding: spacing.l }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 80, padding: spacing.l }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.m, marginBottom: spacing.l }}>
           <Image source={SPARTAN_LOGO} style={{ width: 80, height: 56 }} resizeMode="contain" />
           <View style={{ flex: 1 }}>
