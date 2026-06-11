@@ -100,6 +100,11 @@ export function useSubscription(): SubscriptionStatus & { refresh: () => void } 
   return { ...status, refresh };
 }
 
+export async function activateSession(sessionId: string): Promise<{ activated: boolean; tier: string }> {
+  const { data } = await api.post('/subscription/activate-session', { session_id: sessionId });
+  return { activated: data.activated as boolean, tier: data.tier as string };
+}
+
 export async function createSubscriptionCheckout(originUrl: string): Promise<string> {
   const { data } = await api.post('/subscription/checkout', { origin_url: originUrl });
   return data.url as string;
