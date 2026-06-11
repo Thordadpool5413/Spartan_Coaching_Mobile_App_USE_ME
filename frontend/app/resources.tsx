@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ScrollView, View, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
+import { ScrollView, View, StyleSheet, Pressable, ActivityIndicator, Modal, Share, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import { palette, radius, spacing } from '../theme';
-import { Card, H1, H3, Body, Small, SectionLabel } from '../components/UI';
+import { Card, PrimaryButton, GhostButton, H1, H3, Body, Small, SectionLabel } from '../components/UI';
 import { getResources, Resource } from '../lib/api';
+import { isFavorite, recordActivity, toggleFavorite } from '../lib/local-state';
 
 const CATEGORY_META: Record<Resource['category'], { label: string; icon: keyof typeof Ionicons.glyphMap; color: string }> = {
   script: { label: 'Scripts', icon: 'document-text', color: '#3b82f6' },
@@ -19,15 +21,62 @@ export default function ResourcesScreen() {
   const [items, setItems] = useState<Resource[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [filter, setFilter] = useState<Resource['category'] | 'all'>('all');
+  const [selected, setSelected] = useState<Resource | null>(null);
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     getResources().then((d) => setItems(d.resources)).catch((e) => setErr(e?.message || 'Failed to load'));
   }, []);
 
+  useEffect(() => {
+    if (!selected) return;
+    isFavorite('resources', selected.id).then(setSaved).catch(() => {});
+    recordActivity({
+      kind: 'resource',
+      title: selected.title,
+      detail: CATEGORY_META[selected.category].label,
+      route: '/resources',
+    }).catch(() => {});
+  }, [selected]);
+
   const filtered = useMemo(() => {
     if (!items) return [];
     return filter === 'all' ? items : items.filter((r) => r.category === filter);
   }, [items, filter]);
+
+  const requestText = selected
+    ? `Spartan Coaching resource request\n\nResource: ${selected.title}\nCategory: ${CATEGORY_META[selected.category].label}\n\n${selected.description}\n\nPlease send me this resource as a PDF.`
+    : '';
+
+  const toggleSave = async () => {
+    if (!selected) return;
+    const next = await toggleFavorite('resources', selected.id);
+    setSaved(next);
+    Alert.alert(next ? 'Saved' : 'Removed', next ? 'Resource saved for later.' : 'Resource removed from saved items.');
+  };
+
+  const shareRequest = async () => {
+    if (!selected) return;
+    try {
+      if (Platform.OS === 'web' && (navigator as any).share) {
+        await (navigator as any).share({ title: selected.title, text: requestText });
+      } else {
+        await Share.share({ title: selected.title, message: requestText });
+      }
+    } catch {
+      // no-op
+    }
+  };
+
+  const copyRequest = async () => {
+    if (!selected) return;
+    try {
+      await Clipboard.setStringAsync(requestText);
+      Alert.alert('Copied', 'Resource request copied to the clipboard.');
+    } catch {
+      Alert.alert('Could not copy', 'Please share the request instead.');
+    }
+  };
 
   return (
     <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
@@ -60,16 +109,7 @@ export default function ResourcesScreen() {
             <Pressable
               key={r.id}
               testID={`resource-${r.id}`}
-              onPress={() =>
-                Alert.alert(
-                  r.title,
-                  'PDF downloads are being added to the iOS app. In the meantime, contact Nick at nick@spartanhospicecoaching.com and he will send this resource by email.',
-                  [
-                    { text: 'Got it' },
-                    { text: 'Contact Nick', onPress: () => router.push('/(tabs)/more') },
-                  ],
-                )
-              }
+              onPress={() => setSelected(r)}
               style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1, marginBottom: spacing.m })}
             >
               <Card>
@@ -90,6 +130,67 @@ export default function ResourcesScreen() {
           );
         })}
       </ScrollView>
+
+      <Modal
+        visible={!!selected}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelected(null)}
+      >
+        <View style={styles.backdrop}>
+          <View style={styles.modal}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.m, marginBottom: spacing.m }}>
+              <View style={[styles.icon, { backgroundColor: palette.primaryTint, borderColor: palette.primary }]}>
+                <Ionicons name="document-text" size={20} color={palette.primary} />
+              </View>
+              <H3 style={{ flex: 1 }}>{selected?.title}</H3>
+              <Pressable testID="resource-modal-close" onPress={() => setSelected(null)} hitSlop={8}>
+                <Ionicons name="close" size={22} color={palette.textMuted} />
+              </Pressable>
+            </View>
+            <Body dim style={{ marginBottom: spacing.l, fontSize: 14 }}>
+              PDF downloads are being added to the iOS app. In the meantime, contact Nick and we will send this resource by email.
+            </Body>
+            <View style={{ gap: spacing.s, marginBottom: spacing.m }}>
+              <GhostButton
+                label={saved ? 'Saved' : 'Save resource'}
+                onPress={toggleSave}
+                icon={<Ionicons name={saved ? 'bookmark' : 'bookmark-outline'} size={14} color={palette.text} />}
+              />
+              <GhostButton
+                testID="resource-modal-share"
+                label="Share request"
+                onPress={shareRequest}
+                icon={<Ionicons name="share-outline" size={14} color={palette.text} />}
+              />
+              <GhostButton
+                testID="resource-modal-copy"
+                label="Copy request"
+                onPress={copyRequest}
+                icon={<Ionicons name="copy-outline" size={14} color={palette.text} />}
+              />
+            </View>
+            <PrimaryButton
+              testID="resource-modal-contact"
+              label="Email Nick for this resource"
+              onPress={() => {
+                const title = selected?.title || 'Resource';
+                setSelected(null);
+                router.push({
+                  pathname: '/(tabs)/more',
+                  params: {
+                    interest: `Resource Request: ${title}`,
+                    message: `Please send me the "${title}" resource as a PDF.`,
+                  },
+                } as any);
+              }}
+              icon={<Ionicons name="mail" size={14} color="#fff" />}
+            />
+            <View style={{ height: spacing.s }} />
+            <GhostButton testID="resource-modal-cancel" label="Got it, close" onPress={() => setSelected(null)} />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -124,5 +225,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    padding: spacing.l,
+  },
+  modal: {
+    backgroundColor: palette.bgElev1,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: palette.cardBorder,
+    padding: spacing.l,
   },
 });

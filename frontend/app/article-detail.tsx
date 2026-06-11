@@ -1,15 +1,17 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { ScrollView, View, Pressable, ActivityIndicator, StyleSheet, Text } from 'react-native';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { ScrollView, View, Pressable, ActivityIndicator, StyleSheet, Text, Share, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
+import * as Clipboard from 'expo-clipboard';
 import Markdown from 'react-native-markdown-display';
 import { Ionicons } from '@expo/vector-icons';
 import { palette, radius, spacing } from '../theme';
-import { H1, Body, Small, SectionLabel } from '../components/UI';
+import { H1, Body, Small, SectionLabel, GhostButton } from '../components/UI';
 import { getMarkdownStyles, TextSizeKey } from '../components/markdownStyles';
 import { getArticle, Article } from '../lib/api';
+import { isFavorite, recordActivity, toggleFavorite } from '../lib/local-state';
 
 const TEXT_SIZE_KEY = 'article_text_size';
 const SIZE_CYCLE: TextSizeKey[] = ['small', 'medium', 'large'];
@@ -21,9 +23,11 @@ export default function ArticleDetailScreen() {
   const [err, setErr] = useState<string | null>(null);
   const [textSize, setTextSize] = useState<TextSizeKey>('medium');
   const [browserLoading, setBrowserLoading] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const activityLogged = useRef(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(TEXT_SIZE_KEY).then((saved) => {
+    AsyncStorage.getItem(TEXT_SIZE_KEY).then((saved: string | null) => {
       if (saved && SIZE_CYCLE.includes(saved as TextSizeKey)) {
         setTextSize(saved as TextSizeKey);
       }
@@ -37,6 +41,22 @@ export default function ArticleDetailScreen() {
         .catch((e) => setErr(e?.message || 'Failed to load article'));
     }
   }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    isFavorite('articles', id).then(setSaved).catch(() => {});
+  }, [id]);
+
+  useEffect(() => {
+    if (!article || activityLogged.current) return;
+    activityLogged.current = true;
+    recordActivity({
+      kind: 'article',
+      title: article.title,
+      detail: article.description,
+      route: '/articles',
+    }).catch(() => {});
+  }, [article]);
 
   const cycleTextSize = useCallback(() => {
     setTextSize((current) => {
@@ -55,6 +75,39 @@ export default function ArticleDetailScreen() {
     : '';
 
   const mdStyles = getMarkdownStyles(textSize);
+  const shareText = article
+    ? `${article.title}\n\n${article.description}${article.body ? `\n\n${article.body}` : ''}${article.linkedinUrl ? `\n\nRead more: ${article.linkedinUrl}` : ''}`
+    : '';
+
+  const toggleSave = async () => {
+    if (!article) return;
+    const next = await toggleFavorite('articles', article.id);
+    setSaved(next);
+    Alert.alert(next ? 'Saved' : 'Removed', next ? 'Article saved for later.' : 'Article removed from saved items.');
+  };
+
+  const shareArticle = async () => {
+    if (!article) return;
+    try {
+      if (Platform.OS === 'web' && (navigator as any).share) {
+        await (navigator as any).share({ title: article.title, text: shareText });
+      } else {
+        await Share.share({ title: article.title, message: shareText });
+      }
+    } catch {
+      // no-op
+    }
+  };
+
+  const copyArticle = async () => {
+    if (!article) return;
+    try {
+      await Clipboard.setStringAsync(shareText);
+      Alert.alert('Copied', 'Article text copied to the clipboard.');
+    } catch {
+      Alert.alert('Could not copy', 'Please try sharing the article instead.');
+    }
+  };
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
@@ -96,6 +149,24 @@ export default function ArticleDetailScreen() {
                 Full article coming soon.
               </Body>
             )}
+
+            <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap', marginTop: spacing.l }}>
+              <GhostButton
+                label={saved ? 'Saved' : 'Save article'}
+                onPress={toggleSave}
+                icon={<Ionicons name={saved ? 'heart' : 'heart-outline'} size={14} color={palette.text} />}
+              />
+              <GhostButton
+                label="Share"
+                onPress={shareArticle}
+                icon={<Ionicons name="share-outline" size={14} color={palette.text} />}
+              />
+              <GhostButton
+                label="Copy"
+                onPress={copyArticle}
+                icon={<Ionicons name="copy-outline" size={14} color={palette.text} />}
+              />
+            </View>
 
             {article.linkedinUrl ? (
               <Pressable

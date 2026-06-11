@@ -6,6 +6,7 @@ import { palette, radius, spacing } from '../theme';
 import { Card, PrimaryButton, H2, H3, Body, Small, SectionLabel } from '../components/UI';
 import { getTodayDrill, getDrillStats, completeDrill, DrillToday, DrillStats } from '../lib/api';
 import { getDeviceId } from '../lib/device';
+import { recordActivity, saveStreakSnapshot } from '../lib/local-state';
 
 const CELL = 13;
 const GAP = 3;
@@ -139,6 +140,17 @@ export default function DrillsScreen() {
     try {
       const s = await completeDrill(deviceId, drill.index, drill.dateKey);
       setStats(s);
+      saveStreakSnapshot({
+        streak: s.streak,
+        totalCompleted: s.totalCompleted,
+        dateKey: drill.dateKey,
+      }).catch(() => {});
+      recordActivity({
+        kind: 'drill',
+        title: 'Daily drill completed',
+        detail: drill.category,
+        route: '/drills',
+      }).catch(() => {});
     } finally {
       setCompleting(false);
     }

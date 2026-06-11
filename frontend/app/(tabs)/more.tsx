@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ScrollView, View, Pressable, StyleSheet, TextInput, ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,6 +7,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { palette, radius, spacing, typography } from '../../theme';
 import { Card, PrimaryButton, GhostButton, H1, H2, H3, Body, Small, SectionLabel } from '../../components/UI';
 import { submitContact } from '../../lib/api';
+import { clearContactDraft, loadContactDraft, recordActivity, saveContactDraft } from '../../lib/local-state';
+import { getBuildVariant, isBetaUnlockEnabled } from '../../lib/build';
 
 const SPARTAN_LOGO = require('../../assets/images/spartan-logo.png');
 
@@ -28,6 +30,7 @@ const NAV = [
 export default function MoreTab() {
   const router = useRouter();
   const params = useLocalSearchParams<{ interest?: string; message?: string }>();
+  const hydratedRef = useRef(false);
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -41,17 +44,38 @@ export default function MoreTab() {
 
   // Prefill from query params (e.g. user clicked "Request a Quote" on a service)
   useEffect(() => {
-    const interest = typeof params.interest === 'string' ? params.interest : Array.isArray(params.interest) ? params.interest[0] : '';
-    const message = typeof params.message === 'string' ? params.message : Array.isArray(params.message) ? params.message[0] : '';
-    if (interest || message) {
-      setForm((s) => ({
-        ...s,
-        serviceInterest: interest || s.serviceInterest,
-        message: message || s.message,
-      }));
-    }
+    let active = true;
+    (async () => {
+      const draft = await loadContactDraft();
+      if (!active) return;
+      const interest = typeof params.interest === 'string' ? params.interest : Array.isArray(params.interest) ? params.interest[0] : '';
+      const message = typeof params.message === 'string' ? params.message : Array.isArray(params.message) ? params.message[0] : '';
+      setForm({
+        name: draft?.name || '',
+        email: draft?.email || '',
+        phone: draft?.phone || '',
+        company: draft?.company || '',
+        serviceInterest: interest || draft?.serviceInterest || '',
+        message: message || draft?.message || '',
+      });
+      hydratedRef.current = true;
+    })();
+
+    return () => {
+      active = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.interest, params.message]);
+
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    const hasContent = Object.values(form).some((value) => value.trim().length > 0);
+    if (!hasContent) {
+      clearContactDraft().catch(() => {});
+      return;
+    }
+    saveContactDraft(form).catch(() => {});
+  }, [form]);
 
   const update = (k: keyof typeof form) => (v: string) => setForm((s) => ({ ...s, [k]: v }));
 
@@ -64,6 +88,13 @@ export default function MoreTab() {
     try {
       await submitContact(form);
       setSent(true);
+      clearContactDraft().catch(() => {});
+      recordActivity({
+        kind: 'contact',
+        title: 'Contact form sent',
+        detail: form.serviceInterest || form.company || 'Contact request',
+        route: '/(tabs)/more',
+      }).catch(() => {});
     } catch (e: any) {
       Alert.alert('Could not send', e?.response?.data?.detail || e.message || 'Please try again.');
     } finally {
@@ -80,6 +111,11 @@ export default function MoreTab() {
           <View style={{ flex: 1 }}>
             <H1 style={{ fontSize: 26 }}>More</H1>
             <Small dim>About, services, contact</Small>
+            {isBetaUnlockEnabled() ? (
+              <Small style={{ color: palette.success, fontWeight: '800', marginTop: 2 }}>
+                {getBuildVariant().toUpperCase()} beta unlocked
+              </Small>
+            ) : null}
           </View>
         </View>
 

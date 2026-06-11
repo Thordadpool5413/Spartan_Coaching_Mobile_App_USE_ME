@@ -7,6 +7,7 @@ import { palette, spacing, radius } from '../theme';
 import { Body, Small, H3 } from './UI';
 import { PrimaryButton } from './UI';
 import { useSubscription } from '../lib/subscription';
+import { isBetaUnlockEnabled } from '../lib/build';
 
 type Props = {
   children: React.ReactNode;
@@ -16,6 +17,10 @@ type Props = {
 export default function PaywallGate({ children, feature }: Props) {
   const { isActive, loading } = useSubscription();
   const router = useRouter();
+
+  if (isBetaUnlockEnabled()) {
+    return <>{children}</>;
+  }
 
   if (loading || isActive) {
     return <>{children}</>;

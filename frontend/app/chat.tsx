@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, TextInput, ScrollView, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Pressable } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
@@ -9,14 +9,43 @@ import { Small, Body, PhiNotice } from '../components/UI';
 import { chatWithCoach, ChatHistoryItem } from '../lib/api';
 import { markdownStyles } from '../components/markdownStyles';
 import PaywallGate from '../components/PaywallGate';
+import { clearChatDraft, loadChatDraft, recordActivity, saveChatDraft } from '../lib/local-state';
 
 export default function ChatScreen() {
   const [messages, setMessages] = useState<ChatHistoryItem[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  const hydratedRef = useRef(false);
   const insets = useSafeAreaInsets();
   const keyboardOffset = insets.top + 44;
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const draft = await loadChatDraft();
+      if (!active || !draft) {
+        hydratedRef.current = true;
+        return;
+      }
+      setMessages(draft.messages || []);
+      setInput(draft.input || '');
+      hydratedRef.current = true;
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    if (!messages.length && !input.trim()) {
+      clearChatDraft().catch(() => {});
+      return;
+    }
+    saveChatDraft({ input, messages }).catch(() => {});
+  }, [input, messages]);
 
   const send = async () => {
     if (!input.trim() || loading) return;
@@ -29,6 +58,12 @@ export default function ChatScreen() {
     try {
       const reply = await chatWithCoach(userMsg, messages);
       setMessages([...newHistory, { role: 'model', content: reply }]);
+      recordActivity({
+        kind: 'chat',
+        title: 'Coach chat updated',
+        detail: userMsg.slice(0, 80),
+        route: '/chat',
+      }).catch(() => {});
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (e: any) {
       setMessages([...newHistory, { role: 'model', content: '⚠️ Could not generate a response. Please try again.' }]);
@@ -40,6 +75,7 @@ export default function ChatScreen() {
   const newConversation = () => {
     setMessages([]);
     setInput('');
+    clearChatDraft().catch(() => {});
   };
 
   return (

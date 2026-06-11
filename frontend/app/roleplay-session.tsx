@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TextInput, ScrollView, StyleSheet, ActivityIndicator, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -8,16 +8,51 @@ import { palette, radius, spacing } from '../theme';
 import { Card, PrimaryButton, GhostButton, H2, H3, Body, Small, SectionLabel, PhiNotice } from '../components/UI';
 import { roleplayTurn, roleplayFeedback, ChatHistoryItem } from '../lib/api';
 import { markdownStyles } from '../components/markdownStyles';
+import { clearRoleplayDraft, loadRoleplayDraft, recordActivity, saveRoleplayDraft } from '../lib/local-state';
 
 export default function RoleplaySession() {
   const { id, title } = useLocalSearchParams<{ id: string; title: string }>();
   const router = useRouter();
+  const scenarioId = typeof id === 'string' ? id : '';
+  const scenarioTitle = typeof title === 'string' ? title : 'Role-play Practice';
   const [messages, setMessages] = useState<ChatHistoryItem[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<{ feedback: string; rating: number } | null>(null);
   const [endingSession, setEndingSession] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  const hydratedRef = useRef(false);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      if (!scenarioId) {
+        hydratedRef.current = true;
+        return;
+      }
+      const draft = await loadRoleplayDraft(scenarioId);
+      if (!active || !draft) {
+        hydratedRef.current = true;
+        return;
+      }
+      setMessages(draft.messages || []);
+      setInput(draft.input || '');
+      hydratedRef.current = true;
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [scenarioId]);
+
+  useEffect(() => {
+    if (!hydratedRef.current || feedback || !scenarioId) return;
+    if (!messages.length && !input.trim()) {
+      clearRoleplayDraft(scenarioId).catch(() => {});
+      return;
+    }
+    saveRoleplayDraft(scenarioId, { input, messages, title: scenarioTitle }).catch(() => {});
+  }, [feedback, input, messages, scenarioId, scenarioTitle]);
 
   const send = async () => {
     if (!input.trim() || loading || feedback) return;
@@ -28,7 +63,7 @@ export default function RoleplaySession() {
     setLoading(true);
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     try {
-      const reply = await roleplayTurn(id, userMsg, messages);
+      const reply = await roleplayTurn(scenarioId, userMsg, messages);
       setMessages([...newHistory, { role: 'model', content: reply }]);
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (e) {
@@ -39,11 +74,18 @@ export default function RoleplaySession() {
   };
 
   const endSession = async () => {
-    if (messages.length < 2) return;
+    if (messages.length < 2 || !scenarioId) return;
     setEndingSession(true);
     try {
-      const fb = await roleplayFeedback(id, messages);
+      const fb = await roleplayFeedback(scenarioId, messages);
       setFeedback(fb);
+      recordActivity({
+        kind: 'roleplay',
+        title: `Role-play scored ${fb.rating}/10`,
+        detail: scenarioTitle,
+        route: '/roleplay',
+      }).catch(() => {});
+      clearRoleplayDraft(scenarioId).catch(() => {});
     } catch (e) {
       setFeedback({ feedback: '⚠️ Could not generate feedback. Please try again.', rating: 5 });
     } finally {
@@ -56,7 +98,7 @@ export default function RoleplaySession() {
       <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
         <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 80 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <SectionLabel>Session Complete</SectionLabel>
-          <H2 style={{ marginBottom: spacing.s }}>{title}</H2>
+          <H2 style={{ marginBottom: spacing.s }}>{scenarioTitle}</H2>
 
           <Card style={{ alignItems: 'center', padding: spacing.xl, marginBottom: spacing.l }}>
             <View style={[styles.ratingCircle, { borderColor: ratingColor(feedback.rating) }]}>
@@ -77,7 +119,14 @@ export default function RoleplaySession() {
             <View style={{ flex: 1 }}>
               <PrimaryButton
                 label="Run again"
-                onPress={() => { setMessages([]); setFeedback(null); }}
+                onPress={() => {
+                  setMessages([]);
+                  setInput('');
+                  setFeedback(null);
+                  if (scenarioId) {
+                    clearRoleplayDraft(scenarioId).catch(() => {});
+                  }
+                }}
                 icon={<Ionicons name="refresh" size={14} color="#fff" />}
               />
             </View>
@@ -90,11 +139,11 @@ export default function RoleplaySession() {
   return (
     <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }} keyboardVerticalOffset={90}>
-        <View style={styles.header}>
-          <View style={styles.statusDot} />
-          <View style={{ flex: 1 }}>
+          <View style={styles.header}>
+            <View style={styles.statusDot} />
+            <View style={{ flex: 1 }}>
             <Small style={{ color: palette.primary, fontWeight: '700' }}>In Practice</Small>
-            <Small dim>{title}</Small>
+            <Small dim>{scenarioTitle}</Small>
           </View>
           <Pressable
             testID="roleplay-end"

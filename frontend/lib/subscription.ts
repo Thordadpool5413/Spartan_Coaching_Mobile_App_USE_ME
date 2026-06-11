@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { api } from './api';
+import { isBetaUnlockEnabled } from './build';
 
 export type SubscriptionTier = 'none' | 'trial' | 'pro' | 'team';
 
@@ -24,6 +25,16 @@ const INITIAL: SubscriptionStatus = {
   loading: true,
 };
 
+const BETA_OVERRIDE: SubscriptionStatus = {
+  tier: 'team',
+  trialEndsAt: null,
+  stripeStatus: 'active',
+  isActive: true,
+  trialHoursLeft: 0,
+  companyName: 'TestFlight Beta',
+  loading: false,
+};
+
 let _cache: SubscriptionStatus | null = null;
 let _listeners: Array<(s: SubscriptionStatus) => void> = [];
 let _fetching = false;
@@ -34,6 +45,10 @@ function notify(s: SubscriptionStatus) {
 }
 
 export async function fetchSubscriptionStatus(): Promise<SubscriptionStatus> {
+  if (isBetaUnlockEnabled()) {
+    notify(BETA_OVERRIDE);
+    return BETA_OVERRIDE;
+  }
   if (_fetching) return _cache ?? INITIAL;
   _fetching = true;
   try {
@@ -64,7 +79,7 @@ export function invalidateSubscriptionCache() {
 }
 
 export function useSubscription(): SubscriptionStatus & { refresh: () => void } {
-  const [status, setStatus] = useState<SubscriptionStatus>(_cache ?? INITIAL);
+  const [status, setStatus] = useState<SubscriptionStatus>(_cache ?? (isBetaUnlockEnabled() ? BETA_OVERRIDE : INITIAL));
   const appState = useRef(AppState.currentState);
 
   const refresh = useCallback(() => {
