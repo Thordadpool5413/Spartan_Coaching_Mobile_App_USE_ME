@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, Pressable, Image } from 'react-native';
+import { View, StyleSheet, Pressable, Image, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -8,6 +9,7 @@ import { palette, spacing, radius } from '../theme';
 import { H1, H2, Body, Small, PrimaryButton } from '../components/UI';
 
 const splatterLogo = require('../assets/spartan-splatter-logo.png');
+const SCREEN_H = Dimensions.get('window').height;
 
 export const TERMS_ACCEPTED_KEY = 'terms_accepted_v1';
 export const ONBOARDING_KEY     = 'onboarding_v1_complete';
@@ -100,7 +102,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.bg,
   },
   logoSection: {
-    flex: 1,
+    height: Math.min(SCREEN_H * 0.36, 300),
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 0,
