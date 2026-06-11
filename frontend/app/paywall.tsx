@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, View, StyleSheet, Pressable, Platform, Linking, Image } from 'react-native';
+import { ScrollView, View, StyleSheet, Pressable, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,8 +8,9 @@ import * as WebBrowser from 'expo-web-browser';
 import { palette, spacing, radius, typography } from '../theme';
 import { Body, Small, H1, H2, H3, SectionLabel } from '../components/UI';
 import { createSubscriptionCheckout, fetchSubscriptionStatus, invalidateSubscriptionCache } from '../lib/subscription';
+import { StampSlam } from '../components/StampSlam';
 
-const SPARTAN_CIRCLE = require('../assets/images/spartan-circle-logo.png');
+const SPARTAN_STAMP = require('../assets/images/spartan-stamp-logo.png');
 
 const BULLETS = [
   {
@@ -75,13 +76,13 @@ export default function PaywallScreen() {
       <ScrollView contentContainerStyle={{ paddingBottom: 80 }} bounces={false} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {/* Header gradient */}
         <LinearGradient colors={['#1a0808', palette.bg]} style={styles.hero}>
-          <View style={styles.logoWrap}>
-            <View style={styles.logoGlowOuter}>
-              <View style={styles.logoRing}>
-                <Image source={SPARTAN_CIRCLE} style={{ width: 68, height: 68 }} resizeMode="contain" />
-              </View>
-            </View>
-          </View>
+          <StampSlam
+            source={SPARTAN_STAMP}
+            width={160}
+            height={160}
+            onceKey="paywall"
+            style={{ marginBottom: spacing.s }}
+          />
 
           <SectionLabel style={{ textAlign: 'center', marginBottom: spacing.s }}>
             Spartan Coaching Pro
@@ -181,27 +182,6 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxl,
     paddingHorizontal: spacing.xxxl,
     alignItems: 'center',
-  },
-  logoWrap: { marginBottom: spacing.l },
-  logoGlowOuter: {
-    shadowColor: palette.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.50,
-    shadowRadius: 28,
-    elevation: 0,
-    borderRadius: 52,
-  },
-  logoRing: {
-    width: 104,
-    height: 104,
-    borderRadius: 52,
-    backgroundColor: palette.primaryTint,
-    borderWidth: 1.5,
-    borderTopColor: 'rgba(255,255,255,0.12)',
-    borderColor: 'rgba(239,68,68,0.40)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
   },
   headline: {
     textAlign: 'center',
