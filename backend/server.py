@@ -1135,8 +1135,8 @@ async def check_subscription(request: Request, device_id_body: Optional[str] = N
         trial_ends_at = row["trial_ends_at"]
         team_code     = row["team_code"]
 
-        # Active paying subscriber
-        if stripe_status == "active":
+        # Active paying subscriber (includes Stripe trial period)
+        if stripe_status in ("active", "trialing"):
             return
 
         # Team license — validate the license row is still active
@@ -2125,7 +2125,7 @@ async def subscription_status(request: Request):
             )
         team_active = bool(tl2 and tl2["active"] and tl2["stripe_status"] == "active")
     is_active = (
-        stripe_status == "active"
+        stripe_status in ("active", "trialing")
         or team_active
         or (trial_ends_at is not None and trial_ends_at > now)
     )
