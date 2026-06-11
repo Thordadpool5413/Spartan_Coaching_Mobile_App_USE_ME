@@ -91,6 +91,33 @@ https://spartanhospicecoaching.com/terms     ← Terms of Service (App Store Con
 
 In App Store Connect → your app → App Information, enter the Terms of Use URL in the **"Terms of Use URL"** field alongside the Privacy Policy URL.
 
+## Custom domain setup (api.spartanhospicecoaching.com)
+
+The backend is deployed at `https://spartan-coaching-mobile-app-useme.replit.app`. To make it stable at `https://api.spartanhospicecoaching.com`:
+
+### Step 1 — Add a CNAME DNS record
+At your DNS provider (wherever `spartanhospicecoaching.com` is managed), add:
+
+| Type | Host | Value |
+|---|---|---|
+| CNAME | `api` | `spartan-coaching-mobile-app-useme.replit.app` |
+
+### Step 2 — Add the custom domain in Replit
+1. Go to the **Deployments** panel (rocket icon in the left sidebar)
+2. Open the deployed project's settings
+3. Under **Custom domains**, click **Add domain**
+4. Enter `api.spartanhospicecoaching.com` and follow the verification steps
+
+### Step 3 — Update the Stripe webhook
+Once the domain is verified, update the webhook endpoint URL in Stripe:
+1. Go to **Stripe Dashboard → Developers → Webhooks**
+2. Click on webhook `we_1Th0WjLF4JQdUFsURaxxg3jy`
+3. Click **Update details**
+4. Change the URL to `https://api.spartanhospicecoaching.com/api/webhook/stripe`
+5. Save
+
+`EXPO_PUBLIC_BACKEND_URL` is already set to `https://api.spartanhospicecoaching.com` in Replit environment variables — no further action needed there.
+
 ## Production checklist
 
 - [ ] Replace `ADMIN_TOKEN` with a strong random secret (currently defaults to `spartan-admin`)
@@ -98,7 +125,10 @@ In App Store Connect → your app → App Information, enter the Terms of Use UR
 - [ ] Host privacy policy at `https://spartanhospicecoaching.com/privacy`
 - [ ] Host Terms of Service at `https://spartanhospicecoaching.com/terms`
 - [ ] Enter Terms of Service URL in App Store Connect → App Information → "Terms of Use URL" field
-- [ ] Point `EXPO_PUBLIC_BACKEND_URL` to a stable production backend URL
+- [x] Point `EXPO_PUBLIC_BACKEND_URL` to stable custom domain — set to `https://api.spartanhospicecoaching.com`
+- [ ] Add CNAME DNS record `api` → `spartan-coaching-mobile-app-useme.replit.app`
+- [ ] Verify custom domain `api.spartanhospicecoaching.com` in Replit deployment settings
+- [x] Update Stripe webhook `we_1Th0WjLF4JQdUFsURaxxg3jy` URL to `https://api.spartanhospicecoaching.com/api/webhook/stripe` — done
 - [ ] Verify Resend sending domain (`spartanhospicecoaching.com`) in the Resend dashboard
 - [ ] Fill in Apple credentials in `frontend/eas.json`
 - [ ] Create the App Store Connect app record before running `eas submit`
