@@ -2537,11 +2537,10 @@ async def stripe_webhook(request: Request):
             if not sig:
                 logger.warning("stripe webhook: Stripe-Signature header missing (secret is set)")
                 raise HTTPException(status_code=400, detail="Missing Stripe-Signature header.")
-            event = stripe_lib.Webhook.construct_event(body, sig, STRIPE_WEBHOOK_SECRET)
-        else:
-            # No secret set — accept unsigned events (dev/testing only; warned at startup).
-            import json as _json
-            event = stripe_lib.Event.construct_from(_json.loads(body), stripe_lib.api_key)
+            stripe_lib.Webhook.construct_event(body, sig, STRIPE_WEBHOOK_SECRET)
+        # Normalize to a plain dict for consistent .get() access regardless of SDK version.
+        import json as _json
+        event = _json.loads(body)
     except HTTPException:
         raise
     except Exception as exc:
@@ -2654,8 +2653,8 @@ async def stripe_webhook(request: Request):
                             _wh_sub = await _wh_loop.run_in_executor(
                                 None, lambda: stripe_lib.Subscription.retrieve(sub_id)
                             )
-                            _wh_stripe_status = _wh_sub.get("status", "active")
-                            _wh_trial_ts = _wh_sub.get("trial_end")
+                            _wh_stripe_status = getattr(_wh_sub, "status", "active")
+                            _wh_trial_ts = getattr(_wh_sub, "trial_end", None)
                             if _wh_trial_ts:
                                 _wh_trial_ends_at = datetime.fromtimestamp(_wh_trial_ts, tz=timezone.utc)
                         except Exception:
@@ -2745,7 +2744,7 @@ async def stripe_webhook(request: Request):
                     _twe_customer = await _twe_loop.run_in_executor(
                         None, lambda: stripe_lib.Customer.retrieve(customer_id)
                     )
-                    _twe_email = _twe_customer.get("email") if _twe_customer else None
+                    _twe_email = getattr(_twe_customer, "email", None) if _twe_customer else None
                 if _twe_email:
                     _twe_err = await _twe_loop.run_in_executor(
                         None, lambda: _send_trial_expiry_email(_twe_email, int(trial_end))
