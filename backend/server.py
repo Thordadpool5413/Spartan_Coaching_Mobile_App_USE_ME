@@ -2121,14 +2121,14 @@ async def subscription_checkout(req: SubscriptionCheckoutRequest, request: Reque
     _NATIVE_SCHEMES = {"spartan"}
     if raw_origin.startswith("http://") or raw_origin.startswith("https://"):
         http_origin = raw_origin.rstrip("/")
-        success_url = f"{http_origin}/subscription-success"
+        success_url = f"{http_origin}/subscription-success?session_id={{CHECKOUT_SESSION_ID}}"
         cancel_url  = f"{http_origin}/paywall"
     elif "://" in raw_origin and raw_origin.split("://")[0] in _NATIVE_SCHEMES:
         scheme = raw_origin.split("://")[0]
-        success_url = f"{scheme}://subscription-success"
+        success_url = f"{scheme}://subscription-success?session_id={{CHECKOUT_SESSION_ID}}"
         cancel_url  = f"{scheme}://paywall"
     else:
-        success_url = "spartan://subscription-success"
+        success_url = "spartan://subscription-success?session_id={CHECKOUT_SESSION_ID}"
         cancel_url  = "spartan://paywall"
     stripe_customer_id = None
     if pool and device_id:
@@ -2209,10 +2209,10 @@ async def team_checkout(req: TeamCheckoutRequest, request: Request):
     raw_origin = req.origin_url or ""
     if raw_origin.startswith("http://") or raw_origin.startswith("https://"):
         http_origin = raw_origin.rstrip("/")
-        success_url = f"{http_origin}/subscription-success"
+        success_url = f"{http_origin}/subscription-success?session_id={{CHECKOUT_SESSION_ID}}"
         cancel_url  = f"{http_origin}/paywall"
     else:
-        success_url = "spartan://subscription-success"
+        success_url = "spartan://subscription-success?session_id={CHECKOUT_SESSION_ID}"
         cancel_url  = "spartan://team-checkout"
     try:
         loop = asyncio.get_event_loop()
@@ -2326,6 +2326,85 @@ async def admin_team_licenses(authorization: Optional[str] = Header(None)):
         )
     items = [_row_to_dict(r) for r in rows]
     return {"items": items, "count": len(items)}
+
+
+class ActivateSessionRequest(BaseModel):
+    session_id: str
+
+
+@api.post("/subscription/activate-session")
+async def subscription_activate_session(req: ActivateSessionRequest, request: Request):
+    """
+    Called by the app immediately after Stripe Checkout redirects back.
+    Retrieves the completed session from Stripe and activates the subscription
+    in our DB without waiting for the webhook — eliminating the race condition.
+    Idempotent: safe to call multiple times for the same session.
+    """
+    if not STRIPE_API_KEY:
+        raise HTTPException(status_code=503, detail="Payments are not configured.")
+    device_id = request.headers.get("X-Device-ID", "")
+    if not device_id:
+        raise HTTPException(status_code=400, detail="Device identification required.")
+
+    try:
+        loop = asyncio.get_event_loop()
+        session = await loop.run_in_executor(
+            None,
+            lambda: stripe_lib.checkout.Session.retrieve(
+                req.session_id,
+                expand=["subscription"],
+            ),
+        )
+    except Exception as exc:
+        logger.exception("activate-session: stripe retrieve failed session=%s", req.session_id)
+        raise HTTPException(status_code=502, detail=f"Stripe error: {exc}")
+
+    if session.get("status") != "complete":
+        raise HTTPException(status_code=400, detail="Session not yet complete.")
+    if session.get("payment_status") not in ("paid", "no_payment_required"):
+        raise HTTPException(status_code=400, detail="Payment not confirmed.")
+    if session.get("mode") != "subscription":
+        raise HTTPException(status_code=400, detail="Not a subscription session.")
+
+    meta         = session.get("metadata") or {}
+    customer_id  = session.get("customer")
+    sub_obj      = session.get("subscription") or {}
+    sub_id       = sub_obj.get("id") if isinstance(sub_obj, dict) else getattr(sub_obj, "id", None)
+    source       = meta.get("source", "")
+
+    if not pool:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+    if source == "spartan_team":
+        # Team purchase — look up the license that should have been created by the webhook
+        # (webhook may already have run; if not, this will retry naturally via polling)
+        async with pool.acquire() as conn:
+            tl = await conn.fetchrow(
+                "SELECT code, company_name, active, stripe_status FROM team_licenses WHERE stripe_subscription_id = $1",
+                sub_id,
+            ) if sub_id else None
+        if not tl:
+            raise HTTPException(status_code=202, detail="License not yet provisioned; retry shortly.")
+        return {"activated": True, "tier": "team", "company_name": tl["company_name"]}
+    else:
+        # Individual Pro subscription
+        if not sub_id:
+            raise HTTPException(status_code=400, detail="No subscription ID on session.")
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """INSERT INTO subscriptions
+                       (device_id, tier, stripe_customer_id, stripe_subscription_id, stripe_status)
+                   VALUES ($1, 'pro', $2, $3, 'active')
+                   ON CONFLICT (device_id) DO UPDATE SET
+                       tier                   = 'pro',
+                       stripe_customer_id     = $2,
+                       stripe_subscription_id = $3,
+                       stripe_status          = 'active',
+                       updated_at             = NOW()""",
+                device_id, customer_id, sub_id,
+            )
+        logger.info("activate-session: subscription activated device=%s sub=%s", device_id, sub_id)
+        return {"activated": True, "tier": "pro"}
 
 
 @api.post("/webhook/stripe")
