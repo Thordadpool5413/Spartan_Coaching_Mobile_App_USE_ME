@@ -468,11 +468,13 @@ _CREATE_TABLES = [
         stripe_customer_id     TEXT,
         stripe_subscription_id TEXT,
         stripe_status          TEXT,
+        customer_email         TEXT,
         created_at             TIMESTAMPTZ DEFAULT NOW(),
         updated_at             TIMESTAMPTZ DEFAULT NOW()
     )
     """,
     "ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS team_code TEXT",
+    "ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS customer_email TEXT",
     """
     CREATE TABLE IF NOT EXISTS team_licenses (
         id                     SERIAL PRIMARY KEY,
@@ -2641,6 +2643,8 @@ async def stripe_webhook(request: Request):
             else:
                 # ---- Individual Pro subscription ----
                 if device_id and customer_id and pool:
+                    # Capture customer email from checkout session details
+                    _wh_cust_email = (obj.get("customer_details") or {}).get("email") or None
                     # Fetch subscription to capture trialing status and trial_end timestamp
                     _wh_stripe_status = "active"
                     _wh_trial_ends_at = None
@@ -2659,16 +2663,17 @@ async def stripe_webhook(request: Request):
                     async with pool.acquire() as conn:
                         await conn.execute(
                             """INSERT INTO subscriptions
-                                   (device_id, tier, stripe_customer_id, stripe_subscription_id, stripe_status, trial_ends_at)
-                               VALUES ($1, 'pro', $2, $3, $4, $5)
+                                   (device_id, tier, stripe_customer_id, stripe_subscription_id, stripe_status, trial_ends_at, customer_email)
+                               VALUES ($1, 'pro', $2, $3, $4, $5, $6)
                                ON CONFLICT (device_id) DO UPDATE SET
                                    tier                   = 'pro',
                                    stripe_customer_id     = $2,
                                    stripe_subscription_id = $3,
                                    stripe_status          = $4,
                                    trial_ends_at          = COALESCE($5, trial_ends_at),
+                                   customer_email         = COALESCE($6, customer_email),
                                    updated_at             = NOW()""",
-                            device_id, customer_id, sub_id, _wh_stripe_status, _wh_trial_ends_at,
+                            device_id, customer_id, sub_id, _wh_stripe_status, _wh_trial_ends_at, _wh_cust_email,
                         )
                     logger.info("subscription activated: device=%s customer=%s sub=%s status=%s", device_id, customer_id, sub_id, _wh_stripe_status)
     elif event_type == "checkout.session.async_payment_failed":
@@ -2725,10 +2730,22 @@ async def stripe_webhook(request: Request):
         if customer_id and trial_end and RESEND_API_KEY:
             try:
                 _twe_loop = asyncio.get_event_loop()
-                _twe_customer = await _twe_loop.run_in_executor(
-                    None, lambda: stripe_lib.Customer.retrieve(customer_id)
-                )
-                _twe_email = _twe_customer.get("email") if _twe_customer else None
+                # Try DB-first lookup; avoids a Stripe round-trip when email was captured at checkout
+                _twe_email: Optional[str] = None
+                if pool:
+                    async with pool.acquire() as _twe_conn:
+                        _twe_row = await _twe_conn.fetchrow(
+                            "SELECT customer_email FROM subscriptions WHERE stripe_customer_id = $1",
+                            customer_id,
+                        )
+                        if _twe_row:
+                            _twe_email = _twe_row["customer_email"]
+                # Fall back to Stripe Customer.retrieve if the column is NULL
+                if not _twe_email:
+                    _twe_customer = await _twe_loop.run_in_executor(
+                        None, lambda: stripe_lib.Customer.retrieve(customer_id)
+                    )
+                    _twe_email = _twe_customer.get("email") if _twe_customer else None
                 if _twe_email:
                     _twe_err = await _twe_loop.run_in_executor(
                         None, lambda: _send_trial_expiry_email(_twe_email, int(trial_end))
