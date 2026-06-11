@@ -1,0 +1,108 @@
+"OneDrive/Documents/New project/app/articles/[id].tsx"
+  s_0aaf32ea8911ac::t_390d8a24071cae 1-184,186-191
+  s_0aaf32ea8911ac::t_4384daa6618dd9 185
+"OneDrive/Documents/New project/lib/api.ts"
+  s_0aaf32ea8911ac::t_8948baab7bc5ad 1-201
+"OneDrive/Documents/New project/expo-env.d.ts"
+  s_0aaf32ea8911ac::t_d73f6b9eeef3ac 1
+"OneDrive/Documents/New project/app/(tabs)/admin.tsx"
+  s_0aaf32ea8911ac::t_4384daa6618dd9 6,30-31
+  s_0aaf32ea8911ac::t_179c2af2c605b9 1-5,7-29,32-111,113,115-179,181-337
+  s_0aaf32ea8911ac::t_3c666420c70fba 112,114,180
+"OneDrive/Documents/New project/app/(tabs)/_layout.tsx"
+  s_0aaf32ea8911ac::t_14098ad59c13d7 1-71
+"OneDrive/Documents/New project/app/content/[slug].tsx"
+  s_0aaf32ea8911ac::t_11dda9c5778314 1-4,6-124
+  s_0aaf32ea8911ac::t_4983aa6564e8e4 5
+"OneDrive/Documents/New project/app/(tabs)/index.tsx"
+  s_0aaf32ea8911ac::t_4384daa6618dd9 9,21-22
+  s_0aaf32ea8911ac::t_647fab349cef85 27,76,191
+  s_0aaf32ea8911ac::t_179c2af2c605b9 1-8,10-20,23-26,28-75,77-190,192-239
+"OneDrive/Documents/New project/tsconfig.json"
+  s_0aaf32ea8911ac::t_bc7c26a381599e 1-8,32
+  s_0aaf32ea8911ac::t_d73f6b9eeef3ac 9-31
+"OneDrive/Documents/New project/lib/format.ts"
+  s_0aaf32ea8911ac::t_8948baab7bc5ad 1-65
+"OneDrive/Documents/New project/app/(tabs)/coach.tsx"
+  s_0aaf32ea8911ac::t_179c2af2c605b9 1-243
+"OneDrive/Documents/New project/app/roleplay.tsx"
+  s_0aaf32ea8911ac::t_a7d63ab788a97e 1,3-6,8-47,49-51,59-79,81-86,88-114,116-117,119-123,125-133,135-152,154-155,157-191,193-194,196-299,301-323
+  s_0aaf32ea8911ac::t_d6c46815650b41 7,48
+  s_0aaf32ea8911ac::t_4384daa6618dd9 52-58,80,87,115,118,124,134,153,156,192,195,300
+  s_0aaf32ea8911ac::t_68c9078c844ef8 2
+"OneDrive/Documents/New project/app/contact.tsx"
+  s_0aaf32ea8911ac::t_70adc2d8624125 1-196
+"OneDrive/Documents/New project/app/resources/[id].tsx"
+  s_0aaf32ea8911ac::t_1092bd2c4ddc06 1-158,165-184
+  s_0aaf32ea8911ac::t_3bf4a411621023 159-164
+"OneDrive/Documents/New project/eas.json"
+  s_0aaf32ea8911ac::t_bc7c26a381599e 1-24
+"OneDrive/Documents/New project/components/ui.tsx"
+  s_0aaf32ea8911ac::t_677615db30f03c 1-22,51-387,391-507,511-512
+  s_0aaf32ea8911ac::t_89eb5d67e224c1 23-50
+  s_0aaf32ea8911ac::t_4384daa6618dd9 388-390,508-510
+"OneDrive/Documents/New project/package.json"
+  s_0aaf32ea8911ac::t_bc7c26a381599e 1-51
+"OneDrive/Documents/New project/app.json"
+  s_0aaf32ea8911ac::t_af7849e48270c7 6,21-25
+  s_0aaf32ea8911ac::t_bc7c26a381599e 1-5,7-20,26-37
+"OneDrive/Documents/New project/babel.config.js"
+  s_0aaf32ea8911ac::t_bc7c26a381599e 1-17
+"OneDrive/Documents/New project/lib/catalog.ts"
+  s_0aaf32ea8911ac::t_8948baab7bc5ad 1-286
+"OneDrive/Documents/New project/components/export-document.tsx"
+  s_0aaf32ea8911ac::t_8948baab7bc5ad 1-83
+"OneDrive/Documents/New project/app/assessment/[id].tsx"
+  s_0aaf32ea8911ac::t_72c4cf1ef5654a 321-322
+  s_0aaf32ea8911ac::t_0fe0e9f26a0ac1 1-320,323-345
+"OneDrive/Documents/New project/app/(tabs)/library.tsx"
+  s_0aaf32ea8911ac::t_9e914a11cdf779 177,194-195,198-208
+  s_0aaf32ea8911ac::t_179c2af2c605b9 1-176,178-193,196-197,209-277
+"OneDrive/Documents/New project/app/_layout.tsx"
+  s_0aaf32ea8911ac::t_14098ad59c13d7 1-12,14-38
+  s_0aaf32ea8911ac::t_4384daa6618dd9 13
+"OneDrive/Documents/New project/app/drills.tsx"
+  s_0aaf32ea8911ac::t_a7d63ab788a97e 1-30,32-56,58-104,106-183
+  s_0aaf32ea8911ac::t_838326c9e996b0 31,57,105
+"OneDrive/Documents/New project/lib/theme.ts"
+  s_0aaf32ea8911ac::t_8948baab7bc5ad 1-70
+"OneDrive/Documents/New project/app/(tabs)/practice.tsx"
+  s_0aaf32ea8911ac::t_179c2af2c605b9 1-6,8-32,35-114
+  s_0aaf32ea8911ac::t_4384daa6618dd9 7,33-34
+"OneDrive/Documents/New project/app/calculators/[slug].tsx"
+  s_0aaf32ea8911ac::t_0099f688f77441 239-241,266,276,278,280
+  s_0aaf32ea8911ac::t_734b69c5056eeb 689-692
+  s_0aaf32ea8911ac::t_e3207d30fb4069 1-7,9-238,242-245,249-265,267-275,277,279,281-331,334-360,363-387,390-540,545-546,550-551,553-558,560-562,567-569,571,573,575-577,579-581,586-595,597-607,609-612,615,618-619,624-626,631-636,638-647,649-652,654-655,658-664,666-678,683-688,693-705
+  s_0aaf32ea8911ac::t_51d759747e63b7 8
+  s_0aaf32ea8911ac::t_a9c7aca1dca39d 246-248,332-333,361-362,388-389,541-544,547-549,552,559,563-566,570,572,574,578,582-585,596,608,613-614,616-617,620-623,627-630,637,648,653,656-657,665,679-682
+"OneDrive/Documents/New project/components/media-player.tsx"
+  s_0aaf32ea8911ac::t_8948baab7bc5ad 1-41
+"OneDrive/Documents/New project/lib/branch.ts"
+  s_0aaf32ea8911ac::t_8948baab7bc5ad 1-84
+"OneDrive/Documents/New project/app/tools/[slug].tsx"
+  s_0aaf32ea8911ac::t_bc260c56c2aa61 1-472
+"OneDrive/Documents/New project/lib/storage.ts"
+  s_0aaf32ea8911ac::t_c56e015a97cfb6 42
+  s_0aaf32ea8911ac::t_8948baab7bc5ad 1-41,43-169
+"OneDrive/Documents/New project/app/+not-found.tsx"
+  s_0aaf32ea8911ac::t_89eb5d67e224c1 1,8-9,18-20
+  s_0aaf32ea8911ac::t_14098ad59c13d7 2-7,10-17,21-25
+"OneDrive/Documents/New project/lib/workflows.ts"
+  s_0aaf32ea8911ac::t_8a812490d666e8 1-117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "68c117210c3cae26de0c49fcc266912e30a7f73b",
+  "prompts": {},
+  "sessions": {
+    "s_0aaf32ea8911ac": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eb780-af70-7121-8fc4-4e6ec7a01dce",
+        "model": "gpt-5.4-mini"
+      },
+      "human_author": "Thordadpool5413 <nick.lynch.coaching@outlook.com>"
+    }
+  }
+}
