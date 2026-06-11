@@ -1145,7 +1145,7 @@ async def check_subscription(request: Request, device_id_body: Optional[str] = N
                 "SELECT active, stripe_status FROM team_licenses WHERE code = $1",
                 team_code,
             )
-            if tl and tl["active"] and tl["stripe_status"] == "active":
+            if tl and tl["active"] and tl["stripe_status"] in ("active", "trialing"):
                 return
             # License revoked or payment lapsed — fall through to 402
 
@@ -2123,7 +2123,7 @@ async def subscription_status(request: Request):
             tl2 = await conn2.fetchrow(
                 "SELECT active, stripe_status FROM team_licenses WHERE code = $1", team_code
             )
-        team_active = bool(tl2 and tl2["active"] and tl2["stripe_status"] == "active")
+        team_active = bool(tl2 and tl2["active"] and tl2["stripe_status"] in ("active", "trialing"))
     is_active = (
         stripe_status in ("active", "trialing")
         or team_active
@@ -2297,7 +2297,7 @@ async def team_redeem(req: TeamRedeemRequest, request: Request):
         )
         if not tl:
             raise HTTPException(status_code=404, detail="Invalid or expired team code.")
-        if not tl["active"] or tl["stripe_status"] != "active":
+        if not tl["active"] or tl["stripe_status"] not in ("active", "trialing"):
             raise HTTPException(status_code=404, detail="Invalid or expired team code.")
 
         # Check if device already redeemed this exact code — idempotent
