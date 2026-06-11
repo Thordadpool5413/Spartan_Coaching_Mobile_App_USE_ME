@@ -16,6 +16,7 @@ import {
   NotifSettings,
 } from '../lib/notifications';
 import { useSubscription, getSubscriptionPortalUrl, createSubscriptionCheckout, invalidateSubscriptionCache, fetchSubscriptionStatus, redeemTeamCode } from '../lib/subscription';
+import { getBuildVariant, isBetaUnlockEnabled } from '../lib/build';
 
 const TIME_OPTIONS = [
   { h: 6, m: 0, label: '6:00 AM' },
@@ -36,6 +37,7 @@ export default function SettingsScreen() {
   const [permDenied, setPermDenied] = useState(false);
   const { tier, isActive, trialHoursLeft, stripeStatus, companyName, refresh: refreshSub } = useSubscription();
   const [subBusy, setSubBusy] = useState(false);
+  const betaMode = isBetaUnlockEnabled();
 
   // Team code redemption modal
   const [teamModalVisible, setTeamModalVisible] = useState(false);
@@ -102,6 +104,18 @@ export default function SettingsScreen() {
         <Body dim style={{ marginBottom: spacing.l }}>
           Daily nudges that keep your streak alive without becoming noise. One reminder, one time, your choice.
         </Body>
+
+        {betaMode ? (
+          <Card style={{ marginBottom: spacing.l, backgroundColor: 'rgba(16,185,129,0.08)', borderColor: 'rgba(16,185,129,0.25)' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Ionicons name="flask-outline" size={18} color={palette.success} />
+              <View style={{ flex: 1 }}>
+                <Small style={{ color: palette.success, fontWeight: '800' }}>{getBuildVariant().toUpperCase()} beta unlocked</Small>
+                <Small dim>No login gate, all features open for TestFlight reviewers.</Small>
+              </View>
+            </View>
+          </Card>
+        ) : null}
 
         <Card style={{ marginBottom: spacing.l }}>
           <View style={styles.toggleRow}>
@@ -205,7 +219,9 @@ export default function SettingsScreen() {
               </LinearGradient>
               <View style={{ flex: 1 }}>
                 <H3 style={{ fontSize: 16 }}>
-                  {tier === 'team'
+                  {betaMode
+                    ? 'TestFlight Beta Access'
+                    : tier === 'team'
                     ? 'Team Member'
                     : stripeStatus === 'active'
                     ? 'Spartan Pro'
@@ -216,7 +232,9 @@ export default function SettingsScreen() {
                     : 'Trial Ended'}
                 </H3>
                 <Small dim>
-                  {tier === 'team'
+                  {betaMode
+                    ? 'All AI tools and admin features are open in this beta build.'
+                    : tier === 'team'
                     ? companyName ? `${companyName} · Team access active` : 'Team access active'
                     : stripeStatus === 'active'
                     ? 'Active · $39.99/month'
@@ -230,11 +248,11 @@ export default function SettingsScreen() {
             </View>
 
             <View style={{ marginTop: spacing.l, gap: spacing.s }}>
-              {tier === 'team' ? (
+              {betaMode || tier === 'team' ? (
                 <View style={[styles.teamBadge]}>
                   <Ionicons name="checkmark-circle" size={16} color={palette.success} />
                   <Small style={{ color: palette.success, fontWeight: '600', flex: 1 }}>
-                    All AI features unlocked via team license
+                    {betaMode ? 'All AI features unlocked in this beta build' : 'All AI features unlocked via team license'}
                   </Small>
                 </View>
               ) : stripeStatus === 'active' || stripeStatus === 'canceled' ? (

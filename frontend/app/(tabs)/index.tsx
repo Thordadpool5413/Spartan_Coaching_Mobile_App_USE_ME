@@ -1,14 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { ScrollView, View, Text, StyleSheet, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { palette, radius, spacing, typography } from '../../theme';
 import { Card, PrimaryButton, GhostButton, H2, H3, Body, Small, SectionLabel } from '../../components/UI';
 import { StampSlam } from '../../components/StampSlam';
 import { getTodayDrill, getDrillStats, DrillToday, DrillStats, getHeroBadge } from '../../lib/api';
 import { getDeviceId } from '../../lib/device';
+import { getBuildVariant, isBetaUnlockEnabled } from '../../lib/build';
+import { loadLocalState, type LocalState } from '../../lib/local-state';
 
 const SPARTAN_LOGO = require('../../assets/images/spartan-stamp-logo.png');
 
@@ -26,24 +29,88 @@ export default function HomeScreen() {
   const [drill, setDrill] = useState<DrillToday | null>(null);
   const [stats, setStats] = useState<DrillStats | null>(null);
   const [heroBadge, setHeroBadge] = useState('2026 Coaching Programs Open');
+  const [localState, setLocalState] = useState<LocalState | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const [d, deviceId, badge] = await Promise.all([
-          getTodayDrill(),
-          getDeviceId(),
-          getHeroBadge(),
-        ]);
-        setDrill(d);
-        setHeroBadge(badge.text);
-        const s = await getDrillStats(deviceId);
-        setStats(s);
-      } catch (e) {
-        // silent
-      }
-    })();
+  const loadHome = useCallback(async () => {
+    try {
+      const [d, deviceId, badge, state] = await Promise.all([
+        getTodayDrill(),
+        getDeviceId(),
+        getHeroBadge(),
+        loadLocalState(),
+      ]);
+      setDrill(d);
+      setHeroBadge(badge.text);
+      setLocalState(state);
+      const s = await getDrillStats(deviceId);
+      setStats(s);
+    } catch {
+      // silent
+    }
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadHome();
+    }, [loadHome]),
+  );
+
+  const snapshot = localState?.streakSnapshot ?? null;
+  const drafts = localState?.drafts ?? null;
+  const favorites = localState?.favorites ?? { articles: [], resources: [], knowledge: [] };
+  const recentActivity = localState?.recentActivity ?? [];
+  const roleplayDraft = drafts
+    ? Object.entries(drafts.roleplay)
+        .map(([scenarioId, draft]) => ({ scenarioId, ...draft }))
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0] ?? null
+    : null;
+  const betaMode = isBetaUnlockEnabled();
+  const resumeCards = [
+    drafts?.chat && (drafts.chat.messages.length > 0 || drafts.chat.input.trim())
+      ? {
+          key: 'chat',
+          title: 'Coach chat draft',
+          detail: drafts.chat.input.trim() || `${drafts.chat.messages.length} saved messages`,
+          route: '/chat',
+          icon: 'chatbubbles',
+        }
+      : null,
+    drafts?.eligibility && (drafts.eligibility.diagnosis || drafts.eligibility.result)
+      ? {
+          key: 'eligibility',
+          title: drafts.eligibility.result ? `Eligibility ${drafts.eligibility.result.verdict}` : 'Eligibility draft',
+          detail: drafts.eligibility.diagnosis || 'Resume the quick check',
+          route: '/eligibility',
+          icon: 'medical',
+        }
+      : null,
+    drafts?.contact && (drafts.contact.name || drafts.contact.email || drafts.contact.message)
+      ? {
+          key: 'contact',
+          title: 'Contact form draft',
+          detail: drafts.contact.serviceInterest || 'Finish and send the message',
+          route: '/(tabs)/more',
+          icon: 'mail',
+        }
+      : null,
+    roleplayDraft
+      ? {
+          key: 'roleplay',
+          title: roleplayDraft.title || 'Role-play draft',
+          detail: roleplayDraft.input.trim() || `${roleplayDraft.messages.length} saved messages`,
+          route: '/roleplay-session',
+          params: { id: roleplayDraft.scenarioId, title: roleplayDraft.title || 'Role-play practice' },
+          icon: 'people',
+        }
+      : null,
+  ].filter(Boolean) as Array<{
+    key: string;
+    title: string;
+    detail: string;
+    route: string;
+    params?: Record<string, string>;
+    icon: keyof typeof Ionicons.glyphMap;
+  }>;
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: palette.bg }}>
@@ -60,6 +127,12 @@ export default function HomeScreen() {
             <Text style={styles.badgeText}>{heroBadge}</Text>
             <Ionicons name="arrow-forward" size={12} color="#86efac" />
           </View>
+          {betaMode ? (
+            <View style={styles.betaBadge}>
+              <Ionicons name="flask-outline" size={12} color={palette.success} />
+              <Text style={styles.betaBadgeText}>{getBuildVariant().toUpperCase()} BETA UNLOCKED</Text>
+            </View>
+          ) : null}
           <StampSlam source={SPARTAN_LOGO} width={300} height={300} onceKey="home_hero" style={{ alignSelf: 'center', marginBottom: spacing.s }} />
           <Text style={styles.heroTitle}>Hospice Sales{'\n'}Coaching</Text>
           <Text style={styles.heroSub}>
@@ -93,8 +166,8 @@ export default function HomeScreen() {
                 <View style={{ flex: 1 }}>
                   <Small dim>{drill?.category || 'Loading…'}</Small>
                   <Text style={styles.streakText}>
-                    <Text style={{ color: palette.primary, fontWeight: '900' }}>{stats?.streak ?? 0}</Text>{' '}
-                    day streak · {stats?.totalCompleted ?? 0} completed
+                    <Text style={{ color: palette.primary, fontWeight: '900' }}>{stats?.streak ?? snapshot?.streak ?? 0}</Text>{' '}
+                    day streak · {stats?.totalCompleted ?? snapshot?.totalCompleted ?? 0} completed
                   </Text>
                 </View>
               </View>
@@ -148,6 +221,89 @@ export default function HomeScreen() {
             </LinearGradient>
           </Pressable>
         </View>
+
+        {resumeCards.length > 0 ? (
+          <View style={{ paddingHorizontal: spacing.l, marginBottom: spacing.l }}>
+            <SectionLabel>Continue Where You Left Off</SectionLabel>
+            <H2 style={{ marginBottom: spacing.s }}>Drafts saved on this device</H2>
+            <Body dim style={{ marginBottom: spacing.l }}>
+              Jump back into unfinished work without retyping everything.
+            </Body>
+            <View style={{ gap: spacing.m }}>
+              {resumeCards.map((item) => (
+                <Pressable
+                  key={item.key}
+                  onPress={() =>
+                    item.route === '/roleplay-session'
+                      ? router.push({ pathname: item.route as any, params: item.params as any })
+                      : router.push(item.route as any)
+                  }
+                  style={({ pressed }) => [{ opacity: pressed ? 0.86 : 1 }]}
+                >
+                  <Card style={styles.resumeCard}>
+                    <View style={styles.resumeIconWrap}>
+                      <Ionicons name={item.icon} size={18} color={palette.primary} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <H3 style={{ fontSize: 16, marginBottom: 2 }}>{item.title}</H3>
+                      <Small dim numberOfLines={1}>{item.detail}</Small>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={palette.textMuted} />
+                  </Card>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
+        <View style={{ paddingHorizontal: spacing.l, marginBottom: spacing.l }}>
+          <SectionLabel>Saved For Later</SectionLabel>
+          <H2 style={{ marginBottom: spacing.s }}>Favorites</H2>
+          <View style={styles.savedGrid}>
+            <Pressable onPress={() => router.push('/articles' as any)} style={({ pressed }) => [{ opacity: pressed ? 0.86 : 1 }, styles.savedStat]}>
+              <Text style={styles.savedCount}>{favorites.articles.length}</Text>
+              <Small dim>Articles</Small>
+            </Pressable>
+            <Pressable onPress={() => router.push('/resources' as any)} style={({ pressed }) => [{ opacity: pressed ? 0.86 : 1 }, styles.savedStat]}>
+              <Text style={styles.savedCount}>{favorites.resources.length}</Text>
+              <Small dim>Resources</Small>
+            </Pressable>
+            <Pressable onPress={() => router.push('/knowledge' as any)} style={({ pressed }) => [{ opacity: pressed ? 0.86 : 1 }, styles.savedStat]}>
+              <Text style={styles.savedCount}>{favorites.knowledge.length}</Text>
+              <Small dim>Knowledge</Small>
+            </Pressable>
+          </View>
+        </View>
+
+        {recentActivity.length > 0 ? (
+          <View style={{ paddingHorizontal: spacing.l, marginBottom: spacing.l }}>
+            <SectionLabel>Recent Activity</SectionLabel>
+            <H2 style={{ marginBottom: spacing.s }}>What you touched last</H2>
+            <View style={{ gap: spacing.s }}>
+              {recentActivity.slice(0, 4).map((item) => {
+                const meta = getActivityMeta(item.kind);
+                return (
+                  <Pressable
+                    key={item.id}
+                    onPress={() => item.route && router.push(item.route as any)}
+                    style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1 }]}
+                  >
+                    <Card style={styles.activityCard}>
+                      <View style={[styles.activityIconWrap, { backgroundColor: meta.background }]}>
+                        <Ionicons name={meta.icon} size={16} color={meta.color} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <H3 style={{ fontSize: 15, marginBottom: 2 }}>{item.title}</H3>
+                        <Small dim numberOfLines={1}>{item.detail || meta.label}</Small>
+                      </View>
+                      <Small dim>{new Date(item.createdAt).toLocaleDateString()}</Small>
+                    </Card>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
 
         {/* Tools */}
         <View style={{ paddingHorizontal: spacing.l }}>
@@ -237,6 +393,29 @@ export default function HomeScreen() {
   );
 }
 
+function getActivityMeta(kind: string) {
+  switch (kind) {
+    case 'chat':
+      return { icon: 'chatbubbles' as const, color: palette.discipline, background: 'rgba(59,130,246,0.14)', label: 'Coach chat' };
+    case 'roleplay':
+      return { icon: 'people' as const, color: '#a855f7', background: 'rgba(168,85,247,0.14)', label: 'Role-play' };
+    case 'eligibility':
+      return { icon: 'medical' as const, color: '#16a34a', background: 'rgba(22,163,74,0.14)', label: 'Eligibility' };
+    case 'drill':
+      return { icon: 'flame' as const, color: palette.primary, background: palette.primaryTint, label: 'Daily drill' };
+    case 'article':
+      return { icon: 'newspaper' as const, color: '#f97316', background: 'rgba(249,115,22,0.14)', label: 'Article' };
+    case 'resource':
+      return { icon: 'folder-open' as const, color: '#3b82f6', background: 'rgba(59,130,246,0.14)', label: 'Resource' };
+    case 'contact':
+      return { icon: 'mail' as const, color: '#22c55e', background: 'rgba(34,197,94,0.14)', label: 'Contact' };
+    case 'knowledge':
+      return { icon: 'book' as const, color: '#eab308', background: 'rgba(234,179,8,0.14)', label: 'Knowledge' };
+    default:
+      return { icon: 'time' as const, color: palette.textMuted, background: 'rgba(255,255,255,0.06)', label: 'Activity' };
+  }
+}
+
 const styles = StyleSheet.create({
   hero: {
     paddingHorizontal: spacing.l,
@@ -258,6 +437,20 @@ const styles = StyleSheet.create({
   },
   dotPulse: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#22c55e' },
   badgeText: { color: '#86efac', fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
+  betaBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'center',
+    marginBottom: spacing.l,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(16,185,129,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(16,185,129,0.3)',
+  },
+  betaBadgeText: { color: palette.success, fontSize: 11, fontWeight: '900', letterSpacing: 1 },
   heroTitle: {
     color: palette.primary,
     fontSize: 44,
@@ -365,4 +558,53 @@ const styles = StyleSheet.create({
   eligStatL: { color: palette.textDim, fontSize: 11, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
   eligCta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   eligCtaText: { color: palette.primary, fontSize: 15, fontWeight: '800', letterSpacing: 0.2 },
+  resumeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.m,
+    padding: spacing.l,
+  },
+  resumeIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: palette.primaryTint,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  savedGrid: {
+    flexDirection: 'row',
+    gap: spacing.m,
+  },
+  savedStat: {
+    flex: 1,
+    padding: spacing.l,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: palette.cardBorder,
+    backgroundColor: palette.bgElev1,
+    alignItems: 'center',
+    gap: 4,
+  },
+  savedCount: {
+    color: palette.primary,
+    fontSize: 24,
+    fontWeight: '900',
+    letterSpacing: -0.6,
+  },
+  activityCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.m,
+    padding: spacing.l,
+  },
+  activityIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

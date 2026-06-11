@@ -9,6 +9,7 @@ import { palette, spacing, radius, typography } from '../theme';
 import { Body, Small, H1, H2, H3, SectionLabel } from '../components/UI';
 import { createSubscriptionCheckout, fetchSubscriptionStatus, invalidateSubscriptionCache } from '../lib/subscription';
 import { StampSlam } from '../components/StampSlam';
+import { isBetaUnlockEnabled } from '../lib/build';
 
 const SPARTAN_STAMP = require('../assets/images/spartan-stamp-logo.png');
 
@@ -39,6 +40,41 @@ export default function PaywallScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const betaMode = isBetaUnlockEnabled();
+
+  if (betaMode) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: palette.bg }}>
+        <ScrollView contentContainerStyle={{ paddingBottom: 80 }} bounces={false} showsVerticalScrollIndicator={false}>
+          <LinearGradient colors={['#1a0808', palette.bg]} style={styles.hero}>
+            <StampSlam
+              source={SPARTAN_STAMP}
+              width={160}
+              height={160}
+              onceKey="paywall-beta"
+              style={{ marginBottom: spacing.s }}
+            />
+            <SectionLabel style={{ textAlign: 'center', marginBottom: spacing.s }}>TestFlight Beta</SectionLabel>
+            <H1 style={[typography.h1, styles.headline]}>All features are already unlocked.</H1>
+            <H3 style={{ color: palette.textDim, textAlign: 'center', fontWeight: '400', marginTop: spacing.s }}>
+              This beta build skips the subscription wall so reviewers can exercise the full app.
+            </H3>
+          </LinearGradient>
+
+          <View style={styles.footer}>
+            <Small dim style={{ textAlign: 'center' }}>
+              If you landed here from a deep link, just back out and keep testing the app.
+            </Small>
+            <Pressable onPress={() => router.back()} hitSlop={12} style={{ marginTop: spacing.m }}>
+              <Small style={{ color: palette.primary, fontWeight: '700', textAlign: 'center' }}>
+                Go back
+              </Small>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   const subscribe = async () => {
     setLoading(true);

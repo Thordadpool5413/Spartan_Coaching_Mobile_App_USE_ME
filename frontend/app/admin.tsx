@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { palette, radius, spacing } from '../theme';
 import { Card, PrimaryButton, GhostButton, H2, H3, Body, Small, SectionLabel } from '../components/UI';
+import { getAdminToken, getBuildVariant, isBetaUnlockEnabled } from '../lib/build';
 import {
   adminOverview, adminContacts, adminEligibility, AdminOverview,
   adminCreateArticle, adminUpdateArticle, adminDeleteArticle, adminReorderArticles, getArticles,
@@ -109,8 +110,9 @@ function PinPad({
 // ─── Main screen ────────────────────────────────────────────────────────────
 
 export default function AdminScreen() {
-  const [token, setToken] = useState('');
-  const [authed, setAuthed] = useState(false);
+  const betaMode = isBetaUnlockEnabled();
+  const [token, setToken] = useState(betaMode ? getAdminToken() : '');
+  const [authed, setAuthed] = useState(betaMode);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [overview, setOverview] = useState<AdminOverview | null>(null);
@@ -125,6 +127,13 @@ export default function AdminScreen() {
   const [badgeSaved, setBadgeSaved] = useState(false);
 
   useEffect(() => {
+    if (betaMode) {
+      const builtInToken = getAdminToken();
+      setToken(builtInToken);
+      loadAll(builtInToken);
+      return;
+    }
+
     (async () => {
       const saved = await AsyncStorage.getItem(TOKEN_KEY);
       if (saved) {
@@ -152,11 +161,17 @@ export default function AdminScreen() {
       setArticles(arts.articles || []);
       setHeroBadge(badge.text);
       setAuthed(true);
-      await AsyncStorage.setItem(TOKEN_KEY, t);
+      if (!betaMode) {
+        await AsyncStorage.setItem(TOKEN_KEY, t);
+      }
     } catch (err: any) {
       const status = err?.response?.status;
       setError(status === 401 || status === 403 ? 'Wrong PIN. Try again.' : 'Could not connect. Try again.');
-      setAuthed(false);
+      if (!betaMode) {
+        setAuthed(false);
+      } else {
+        setAuthed(true);
+      }
     } finally {
       setLoading(false);
     }
@@ -173,6 +188,9 @@ export default function AdminScreen() {
   };
 
   const logout = async () => {
+    if (betaMode) {
+      return;
+    }
     await AsyncStorage.removeItem(TOKEN_KEY);
     setAuthed(false);
     setToken('');
@@ -211,11 +229,18 @@ export default function AdminScreen() {
             ]}
           >
             <Text style={[styles.tabText, tab === t && { color: palette.primary }]}>{TAB_LABELS[t]}</Text>
+            </Pressable>
+          ))}
+        {!betaMode ? (
+          <Pressable testID="admin-logout" onPress={logout} style={styles.tabIconBtn}>
+            <Ionicons name="log-out-outline" size={18} color={palette.textMuted} />
           </Pressable>
-        ))}
-        <Pressable testID="admin-logout" onPress={logout} style={styles.tabIconBtn}>
-          <Ionicons name="log-out-outline" size={18} color={palette.textMuted} />
-        </Pressable>
+        ) : (
+          <View style={styles.betaBadge}>
+            <Ionicons name="flask-outline" size={12} color={palette.success} />
+            <Small style={{ color: palette.success, fontWeight: '800' }}>Beta</Small>
+          </View>
+        )}
       </View>
 
       <ScrollView
@@ -223,6 +248,17 @@ export default function AdminScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        {betaMode ? (
+          <Card style={{ marginBottom: spacing.l, backgroundColor: 'rgba(16,185,129,0.08)', borderColor: 'rgba(16,185,129,0.3)' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Ionicons name="checkmark-circle" size={18} color={palette.success} />
+              <View style={{ flex: 1 }}>
+                <Small style={{ color: palette.success, fontWeight: '800' }}>TestFlight admin mode active</Small>
+                <Small dim>Build variant: {getBuildVariant()} · No PIN required for beta testers.</Small>
+              </View>
+            </View>
+          </Card>
+        ) : null}
         {tab === 'overview' && overview ? <OverviewView overview={overview} /> : null}
         {tab === 'contacts' ? <ContactsView items={contacts} /> : null}
         {tab === 'eligibility' ? <EligibilityListView items={elig} /> : null}
@@ -836,6 +872,13 @@ const styles = StyleSheet.create({
   tabBtnActive: { borderBottomColor: palette.primary },
   tabText: { color: palette.textMuted, fontSize: 10, fontWeight: '800', letterSpacing: 0.6 },
   tabIconBtn: { padding: 14 },
+  betaBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
   statsRow: { flexDirection: 'row', gap: spacing.m, marginBottom: spacing.m },
   statCard: {
     flex: 1, padding: spacing.l, borderRadius: radius.lg, borderWidth: 1,

@@ -1,5 +1,5 @@
-import React, { useRef } from 'react';
-import { View, Text, StyleSheet, ViewStyle, TextStyle, Pressable, Animated } from 'react-native';
+import React, { useRef, type ReactNode } from 'react';
+import { View, Text, StyleSheet, ViewStyle, TextStyle, Pressable, Animated, StyleProp, type TextProps } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -18,10 +18,10 @@ function useSpringScale(toValue = 0.97) {
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
-export function Card({ style, children, testID }: { style?: ViewStyle; children: React.ReactNode; testID?: string }) {
+export function Card({ style, children, testID }: { style?: StyleProp<ViewStyle>; children: ReactNode; testID?: string }) {
   return (
     <View testID={testID} style={[styles.card, style]}>
-      {children}
+      {children as any}
     </View>
   );
 }
@@ -40,8 +40,8 @@ export function PrimaryButton({
   onPress: () => void;
   disabled?: boolean;
   testID?: string;
-  style?: ViewStyle;
-  icon?: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+  icon?: ReactNode;
 }) {
   const { scale, pressIn, pressOut } = useSpringScale(0.97);
 
@@ -68,7 +68,7 @@ export function PrimaryButton({
         >
           {/* Inner top highlight */}
           <View style={[styles.btnHighlight, { pointerEvents: 'none' }]} />
-          {icon}
+          {icon as any}
           <Text style={styles.primaryBtnText}>{label}</Text>
         </LinearGradient>
       </Pressable>
@@ -88,8 +88,8 @@ export function GhostButton({
   label: string;
   onPress: () => void;
   testID?: string;
-  style?: ViewStyle;
-  icon?: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+  icon?: ReactNode;
 }) {
   const { scale, pressIn, pressOut } = useSpringScale(0.97);
 
@@ -107,7 +107,7 @@ export function GhostButton({
       >
         {/* Inner top highlight */}
         <View style={[styles.ghostHighlight, { pointerEvents: 'none' }]} />
-        {icon}
+        {icon as any}
         <Text style={styles.ghostBtnText}>{label}</Text>
       </Pressable>
     </Animated.View>
@@ -116,7 +116,7 @@ export function GhostButton({
 
 // ─── Pill ─────────────────────────────────────────────────────────────────────
 
-export function Pill({ label, color = palette.primary, testID, style }: { label: string; color?: string; testID?: string; style?: ViewStyle }) {
+export function Pill({ label, color = palette.primary, testID, style }: { label: string; color?: string; testID?: string; style?: StyleProp<ViewStyle> }) {
   return (
     <View testID={testID} style={[styles.pill, { borderColor: color + '55', backgroundColor: color + '15' }, style]}>
       <Text style={[styles.pillText, { color }]}>{label}</Text>
@@ -126,11 +126,20 @@ export function Pill({ label, color = palette.primary, testID, style }: { label:
 
 // ─── SectionLabel ─────────────────────────────────────────────────────────────
 
-export function SectionLabel({ children, style }: { children: React.ReactNode; style?: TextStyle }) {
+type TextPrimitiveProps = Omit<TextProps, 'style' | 'children'> & {
+  children: ReactNode;
+  style?: StyleProp<TextStyle>;
+  dim?: boolean;
+  numberOfLines?: number;
+};
+
+export function SectionLabel({ children, style, ...textProps }: Omit<TextPrimitiveProps, 'dim'>) {
   return (
     <View style={styles.sectionLabelRow}>
       <View style={styles.sectionLabelBar} />
-      <Text style={[styles.sectionLabel, style]}>{String(children).toUpperCase()}</Text>
+      <Text {...textProps} style={[styles.sectionLabel, style]}>
+        {String(children as any).toUpperCase()}
+      </Text>
     </View>
   );
 }
@@ -143,20 +152,40 @@ export function Divider({ style }: { style?: ViewStyle }) {
 
 // ─── Text primitives ──────────────────────────────────────────────────────────
 
-export function H1({ children, style }: { children: React.ReactNode; style?: TextStyle }) {
-  return <Text style={[typography.h1, { color: palette.text }, style]}>{children}</Text>;
+export function H1({ children, style, ...textProps }: TextPrimitiveProps) {
+  return (
+    <Text {...textProps} style={[typography.h1, { color: palette.text }, style]}>
+      {children as any}
+    </Text>
+  );
 }
-export function H2({ children, style }: { children: React.ReactNode; style?: TextStyle }) {
-  return <Text style={[typography.h2, { color: palette.text }, style]}>{children}</Text>;
+export function H2({ children, style, ...textProps }: TextPrimitiveProps) {
+  return (
+    <Text {...textProps} style={[typography.h2, { color: palette.text }, style]}>
+      {children as any}
+    </Text>
+  );
 }
-export function H3({ children, style }: { children: React.ReactNode; style?: TextStyle }) {
-  return <Text style={[typography.h3, { color: palette.text }, style]}>{children}</Text>;
+export function H3({ children, style, ...textProps }: TextPrimitiveProps) {
+  return (
+    <Text {...textProps} style={[typography.h3, { color: palette.text }, style]}>
+      {children as any}
+    </Text>
+  );
 }
-export function Body({ children, style, dim, numberOfLines }: { children: React.ReactNode; style?: TextStyle; dim?: boolean; numberOfLines?: number }) {
-  return <Text numberOfLines={numberOfLines} style={[typography.body, { color: dim ? palette.textDim : palette.text }, style]}>{children}</Text>;
+export function Body({ children, style, dim, numberOfLines, ...textProps }: TextPrimitiveProps) {
+  return (
+    <Text {...textProps} numberOfLines={numberOfLines} style={[typography.body, { color: dim ? palette.textDim : palette.text }, style]}>
+      {children as any}
+    </Text>
+  );
 }
-export function Small({ children, style, dim }: { children: React.ReactNode; style?: TextStyle; dim?: boolean }) {
-  return <Text style={[typography.small, { color: dim ? palette.textDim : palette.text }, style]}>{children}</Text>;
+export function Small({ children, style, dim, numberOfLines, ...textProps }: TextPrimitiveProps) {
+  return (
+    <Text {...textProps} numberOfLines={numberOfLines} style={[typography.small, { color: dim ? palette.textDim : palette.text }, style]}>
+      {children as any}
+    </Text>
+  );
 }
 
 // ─── PhiNotice ────────────────────────────────────────────────────────────────

@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { ScrollView, View, TextInput, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
+import { ScrollView, View, TextInput, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { palette, radius, spacing } from '../theme';
-import { Card, H2, H3, Body, Small, SectionLabel } from '../components/UI';
+import { Card, H2, H3, Body, Small, SectionLabel, GhostButton } from '../components/UI';
 import { getKnowledge, KbEntry } from '../lib/api';
+import { loadFavorites, recordActivity, toggleFavorite } from '../lib/local-state';
 
 export default function KnowledgeScreen() {
   const [q, setQ] = useState('');
@@ -12,6 +13,7 @@ export default function KnowledgeScreen() {
   const [data, setData] = useState<{ entries: KbEntry[]; categories: string[]; total: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [savedTerms, setSavedTerms] = useState<string[]>([]);
 
   useEffect(() => {
     setLoading(true);
@@ -20,7 +22,23 @@ export default function KnowledgeScreen() {
       .finally(() => setLoading(false));
   }, [q, category]);
 
+  useEffect(() => {
+    loadFavorites('knowledge').then(setSavedTerms).catch(() => {});
+  }, []);
+
   const cats = useMemo(() => ['All', ...(data?.categories || [])], [data]);
+
+  const toggleSave = async (term: string, categoryLabel: string) => {
+    const next = await toggleFavorite('knowledge', term);
+    setSavedTerms((cur) => (next ? Array.from(new Set([...cur, term])) : cur.filter((item) => item !== term)));
+    Alert.alert(next ? 'Saved' : 'Removed', next ? 'Knowledge term saved for later.' : 'Knowledge term removed from saved items.');
+    recordActivity({
+      kind: 'knowledge',
+      title: term,
+      detail: categoryLabel,
+      route: '/knowledge',
+    }).catch(() => {});
+  };
 
   return (
     <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
@@ -86,7 +104,14 @@ export default function KnowledgeScreen() {
                     <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={palette.textMuted} />
                   </View>
                   {isExpanded && (
-                    <Body dim style={{ marginTop: spacing.s }}>{e.definition}</Body>
+                    <View style={{ marginTop: spacing.s, gap: spacing.m }}>
+                      <Body dim>{e.definition}</Body>
+                      <GhostButton
+                        label={savedTerms.includes(e.term) ? 'Saved' : 'Save term'}
+                        onPress={() => toggleSave(e.term, e.category)}
+                        icon={<Ionicons name={savedTerms.includes(e.term) ? 'bookmark' : 'bookmark-outline'} size={14} color={palette.text} />}
+                      />
+                    </View>
                   )}
                 </Card>
               </Pressable>

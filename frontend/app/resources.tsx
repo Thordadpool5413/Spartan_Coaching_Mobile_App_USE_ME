@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ScrollView, View, StyleSheet, Pressable, ActivityIndicator, Modal } from 'react-native';
+import { ScrollView, View, StyleSheet, Pressable, ActivityIndicator, Modal, Share, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import { palette, radius, spacing } from '../theme';
 import { Card, PrimaryButton, GhostButton, H1, H3, Body, Small, SectionLabel } from '../components/UI';
 import { getResources, Resource } from '../lib/api';
+import { isFavorite, recordActivity, toggleFavorite } from '../lib/local-state';
 
 const CATEGORY_META: Record<Resource['category'], { label: string; icon: keyof typeof Ionicons.glyphMap; color: string }> = {
   script: { label: 'Scripts', icon: 'document-text', color: '#3b82f6' },
@@ -20,15 +22,61 @@ export default function ResourcesScreen() {
   const [err, setErr] = useState<string | null>(null);
   const [filter, setFilter] = useState<Resource['category'] | 'all'>('all');
   const [selected, setSelected] = useState<Resource | null>(null);
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     getResources().then((d) => setItems(d.resources)).catch((e) => setErr(e?.message || 'Failed to load'));
   }, []);
 
+  useEffect(() => {
+    if (!selected) return;
+    isFavorite('resources', selected.id).then(setSaved).catch(() => {});
+    recordActivity({
+      kind: 'resource',
+      title: selected.title,
+      detail: CATEGORY_META[selected.category].label,
+      route: '/resources',
+    }).catch(() => {});
+  }, [selected]);
+
   const filtered = useMemo(() => {
     if (!items) return [];
     return filter === 'all' ? items : items.filter((r) => r.category === filter);
   }, [items, filter]);
+
+  const requestText = selected
+    ? `Spartan Coaching resource request\n\nResource: ${selected.title}\nCategory: ${CATEGORY_META[selected.category].label}\n\n${selected.description}\n\nPlease send me this resource as a PDF.`
+    : '';
+
+  const toggleSave = async () => {
+    if (!selected) return;
+    const next = await toggleFavorite('resources', selected.id);
+    setSaved(next);
+    Alert.alert(next ? 'Saved' : 'Removed', next ? 'Resource saved for later.' : 'Resource removed from saved items.');
+  };
+
+  const shareRequest = async () => {
+    if (!selected) return;
+    try {
+      if (Platform.OS === 'web' && (navigator as any).share) {
+        await (navigator as any).share({ title: selected.title, text: requestText });
+      } else {
+        await Share.share({ title: selected.title, message: requestText });
+      }
+    } catch {
+      // no-op
+    }
+  };
+
+  const copyRequest = async () => {
+    if (!selected) return;
+    try {
+      await Clipboard.setStringAsync(requestText);
+      Alert.alert('Copied', 'Resource request copied to the clipboard.');
+    } catch {
+      Alert.alert('Could not copy', 'Please share the request instead.');
+    }
+  };
 
   return (
     <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: palette.bg }}>
@@ -103,6 +151,25 @@ export default function ResourcesScreen() {
             <Body dim style={{ marginBottom: spacing.l, fontSize: 14 }}>
               PDF downloads are being added to the iOS app. In the meantime, contact Nick and we will send this resource by email.
             </Body>
+            <View style={{ gap: spacing.s, marginBottom: spacing.m }}>
+              <GhostButton
+                label={saved ? 'Saved' : 'Save resource'}
+                onPress={toggleSave}
+                icon={<Ionicons name={saved ? 'bookmark' : 'bookmark-outline'} size={14} color={palette.text} />}
+              />
+              <GhostButton
+                testID="resource-modal-share"
+                label="Share request"
+                onPress={shareRequest}
+                icon={<Ionicons name="share-outline" size={14} color={palette.text} />}
+              />
+              <GhostButton
+                testID="resource-modal-copy"
+                label="Copy request"
+                onPress={copyRequest}
+                icon={<Ionicons name="copy-outline" size={14} color={palette.text} />}
+              />
+            </View>
             <PrimaryButton
               testID="resource-modal-contact"
               label="Email Nick for this resource"
