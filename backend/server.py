@@ -100,6 +100,65 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+async def _send_webhook_failure_alert(event_type: str, exc: Exception) -> None:
+    """Best-effort alert email to CONTACT_EMAIL when stripe_webhook crashes unexpectedly."""
+    if not RESEND_API_KEY or not CONTACT_EMAIL:
+        logger.warning("webhook alert skipped: RESEND_API_KEY or CONTACT_EMAIL not set")
+        return
+    try:
+        import traceback as _tb
+        _trace = _tb.format_exc()
+        _subject = f"[Spartan] Stripe webhook error — {event_type or 'unknown event'}"
+        _html = f"""
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+            background:#0a0a0b;color:#e5e5e5;padding:32px 24px;max-width:680px;margin:0 auto;">
+  <p style="font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
+            color:#ef4444;margin:0 0 12px;">Spartan Coaching — Webhook Alert</p>
+  <h1 style="font-size:22px;font-weight:800;color:#fff;margin:0 0 20px;">
+    Stripe webhook raised an unexpected error
+  </h1>
+  <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+    <tr><td style="color:#a3a3ad;padding:6px 0;width:110px;">Event type</td>
+        <td style="color:#e5e5e5;font-family:monospace;">{event_type or "(unknown)"}</td></tr>
+    <tr><td style="color:#a3a3ad;padding:6px 0;">Error</td>
+        <td style="color:#f87171;font-family:monospace;">{type(exc).__name__}: {exc}</td></tr>
+  </table>
+  <pre style="background:#141417;border:1px solid #26262c;border-radius:10px;padding:16px;
+              overflow-x:auto;white-space:pre-wrap;color:#fca5a5;font-size:12px;
+              font-family:monospace;margin-bottom:24px;">{_trace}</pre>
+  <p style="color:#a3a3ad;font-size:13px;margin:0 0 8px;">
+    Stripe will retry this event automatically. Check the Stripe dashboard for delivery status.
+  </p>
+  <p style="color:#52525b;font-size:12px;margin:0;">
+    Stripe Dashboard → Developers → Webhooks → webhook → Recent events
+  </p>
+</div>"""
+        _loop = asyncio.get_event_loop()
+        await _loop.run_in_executor(
+            None,
+            lambda: resend.Emails.send({
+                "from": f"{RESEND_FROM_NAME} <{RESEND_FROM_EMAIL}>",
+                "to": [CONTACT_EMAIL],
+                "subject": _subject,
+                "html": _html,
+            }),
+        )
+        logger.info("webhook failure alert sent to %s (event=%s)", CONTACT_EMAIL, event_type)
+    except Exception as _ae:
+        logger.error("failed to send webhook failure alert: %s", _ae)
+
+
+@app.exception_handler(Exception)
+async def _unhandled_exception_handler(request: Request, exc: Exception):
+    """Catch unhandled exceptions from the Stripe webhook route and send an alert email."""
+    logger.exception("unhandled exception on %s", request.url.path)
+    if "/webhook/stripe" in request.url.path:
+        event_type = getattr(request.state, "stripe_event_type", "")
+        await _send_webhook_failure_alert(event_type, exc)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
+
 _PRIVACY_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2551,6 +2610,7 @@ async def stripe_webhook(request: Request):
     payment_status      = None
     is_subscription_mode = False
     event_type          = event.get("type", "")
+    request.state.stripe_event_type = event_type  # available to the exception handler if we crash
 
     if event_type in ("checkout.session.completed", "checkout.session.async_payment_succeeded"):
         obj            = event["data"]["object"]
