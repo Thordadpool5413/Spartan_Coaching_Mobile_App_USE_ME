@@ -20,6 +20,7 @@ export default function ArticleDetailScreen() {
   const [article, setArticle] = useState<Article | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [textSize, setTextSize] = useState<TextSizeKey>('medium');
+  const [browserLoading, setBrowserLoading] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem(TEXT_SIZE_KEY).then((saved) => {
@@ -98,12 +99,27 @@ export default function ArticleDetailScreen() {
 
             {article.linkedinUrl ? (
               <Pressable
-                onPress={() => WebBrowser.openBrowserAsync(article.linkedinUrl!)}
+                onPress={async () => {
+                  if (browserLoading) return;
+                  setBrowserLoading(true);
+                  try {
+                    await WebBrowser.openBrowserAsync(article.linkedinUrl!);
+                  } finally {
+                    setBrowserLoading(false);
+                  }
+                }}
                 style={styles.linkedinBtn}
+                disabled={browserLoading}
               >
-                <Ionicons name="logo-linkedin" size={16} color={palette.primary} />
-                <Small style={{ color: palette.primary, fontWeight: '700' }}>View on LinkedIn</Small>
-                <Ionicons name="open-outline" size={14} color={palette.primary} />
+                {browserLoading ? (
+                  <ActivityIndicator size="small" color={palette.primary} />
+                ) : (
+                  <Ionicons name="logo-linkedin" size={16} color={palette.primary} />
+                )}
+                <Small style={{ color: palette.primary, fontWeight: '700' }}>
+                  {browserLoading ? 'Opening…' : 'View on LinkedIn'}
+                </Small>
+                {!browserLoading && <Ionicons name="open-outline" size={14} color={palette.primary} />}
               </Pressable>
             ) : null}
           </>
