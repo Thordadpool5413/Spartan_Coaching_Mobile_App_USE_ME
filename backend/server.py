@@ -101,6 +101,57 @@ app.add_middleware(
 )
 
 
+async def _send_payment_failure_alert(event_type: str, sub_id: str, customer_id: str, status: str, extra: str = "") -> None:
+    """Best-effort alert email to CONTACT_EMAIL when a subscription payment fails (card decline, past_due, etc.)."""
+    if not RESEND_API_KEY or not CONTACT_EMAIL:
+        logger.warning("payment failure alert skipped: RESEND_API_KEY or CONTACT_EMAIL not set")
+        return
+    try:
+        _subject = f"[Spartan] Payment failed — subscription {status}"
+        _rows = ""
+        if sub_id:
+            _rows += f'<tr><td style="color:#a3a3ad;padding:6px 0;width:140px;">Subscription ID</td><td style="color:#e5e5e5;font-family:monospace;">{sub_id}</td></tr>'
+        if customer_id:
+            _rows += f'<tr><td style="color:#a3a3ad;padding:6px 0;">Customer ID</td><td style="color:#e5e5e5;font-family:monospace;">{customer_id}</td></tr>'
+        if status:
+            _rows += f'<tr><td style="color:#a3a3ad;padding:6px 0;">Status</td><td style="color:#f87171;font-family:monospace;">{status}</td></tr>'
+        if extra:
+            _rows += f'<tr><td style="color:#a3a3ad;padding:6px 0;">Detail</td><td style="color:#e5e5e5;font-family:monospace;">{extra}</td></tr>'
+        _html = f"""
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+            background:#0a0a0b;color:#e5e5e5;padding:32px 24px;max-width:680px;margin:0 auto;">
+  <p style="font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
+            color:#ef4444;margin:0 0 12px;">Spartan Coaching — Payment Alert</p>
+  <h1 style="font-size:22px;font-weight:800;color:#fff;margin:0 0 20px;">
+    Subscription payment failed
+  </h1>
+  <p style="color:#a3a3ad;margin:0 0 20px;">
+    A customer&rsquo;s subscription renewal could not be charged. Their access has been downgraded.
+    Reach out to the customer before they churn.
+  </p>
+  <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">{_rows}</table>
+  <p style="color:#a3a3ad;font-size:13px;margin:0 0 8px;">
+    View the customer in the Stripe dashboard to see the failed charge and retry or update their card.
+  </p>
+  <p style="color:#52525b;font-size:12px;margin:0;">
+    Stripe Dashboard → Customers → search by customer ID above
+  </p>
+</div>"""
+        _loop = asyncio.get_event_loop()
+        await _loop.run_in_executor(
+            None,
+            lambda: resend.Emails.send({
+                "from": f"{RESEND_FROM_NAME} <{RESEND_FROM_EMAIL}>",
+                "to": [CONTACT_EMAIL],
+                "subject": _subject,
+                "html": _html,
+            }),
+        )
+        logger.info("payment failure alert sent to %s (event=%s sub=%s status=%s)", CONTACT_EMAIL, event_type, sub_id, status)
+    except Exception as _ae:
+        logger.error("failed to send payment failure alert: %s", _ae)
+
+
 async def _send_webhook_failure_alert(event_type: str, exc: Exception) -> None:
     """Best-effort alert email to CONTACT_EMAIL when stripe_webhook crashes unexpectedly."""
     if not RESEND_API_KEY or not CONTACT_EMAIL:
@@ -2765,6 +2816,12 @@ async def stripe_webhook(request: Request):
                     status, sub_id,
                 )
             logger.info("subscription updated: sub=%s status=%s", sub_id, status)
+        if status in ("past_due", "unpaid"):
+            customer_id_upd = obj.get("customer", "")
+            await _send_payment_failure_alert(
+                event_type, sub_id, customer_id_upd, status,
+                extra="Subscription renewal charge failed. Customer access has been downgraded.",
+            )
     elif event_type == "customer.subscription.deleted":
         obj    = event["data"]["object"]
         sub_id = obj.get("id")
@@ -2815,6 +2872,26 @@ async def stripe_webhook(request: Request):
                     logger.warning("trial_will_end: no email for customer=%s", customer_id)
             except Exception as _twe_exc:
                 logger.error("trial_will_end handler error: %s", _twe_exc)
+
+    elif event_type == "invoice.payment_failed":
+        obj             = event["data"]["object"]
+        _inv_sub_id     = obj.get("subscription", "")
+        _inv_customer   = obj.get("customer", "")
+        _inv_id         = obj.get("id", "")
+        _inv_attempt    = obj.get("attempt_count", "")
+        _inv_next       = obj.get("next_payment_attempt")
+        _inv_extra      = f"Invoice: {_inv_id}"
+        if _inv_attempt:
+            _inv_extra += f" | Attempt #{_inv_attempt}"
+        if _inv_next:
+            from datetime import datetime, timezone as _tz
+            _inv_next_dt = datetime.fromtimestamp(_inv_next, tz=_tz.utc).strftime("%Y-%m-%d %H:%M UTC")
+            _inv_extra += f" | Next retry: {_inv_next_dt}"
+        logger.warning("invoice.payment_failed: sub=%s customer=%s invoice=%s attempt=%s", _inv_sub_id, _inv_customer, _inv_id, _inv_attempt)
+        await _send_payment_failure_alert(
+            event_type, _inv_sub_id, _inv_customer, "invoice_payment_failed",
+            extra=_inv_extra,
+        )
 
     if session_id and not is_subscription_mode:
         await _finalize_paid_session(session_id, payment_status or "unknown", event_type, source=f"webhook:{event_type}")
