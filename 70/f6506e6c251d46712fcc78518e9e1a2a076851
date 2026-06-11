@@ -1,0 +1,75 @@
+frontend/app/(tabs)/index.tsx
+  s_0aaf32ea8911ac::t_4572514aca980f 1,6,13-14,114
+  s_0aaf32ea8911ac::t_e33310091a201f 67-113
+  s_0aaf32ea8911ac::t_6d246f11db8e37 130-135,169-170
+  s_0aaf32ea8911ac::t_17cf024a3528e2 225-307
+  s_0aaf32ea8911ac::t_33a5c5eff9a7d7 396-418,440-453,561-609
+  s_0aaf32ea8911ac::t_dae18c929d6ebe 32,34-49,52-66
+frontend/components/UI.tsx
+  s_0aaf32ea8911ac::t_d66983b191b8da 1,21,24,44,71,92,110,130,141,158,165,172,179,186
+  s_0aaf32ea8911ac::t_90fc9dc8cdea34 187
+  s_0aaf32ea8911ac::t_851eb58c1e5110 43,91,119
+  s_0aaf32ea8911ac::t_7e4340af59ba2f 2,129,131-136,140,142,155-157,159-160,162-164,166-167,169-171,173-174,176-178,180-181,183-185
+frontend/app/article-detail.tsx
+  s_0aaf32ea8911ac::t_abaa021ae7fde0 1,7,14,26-27,45-60,78-110,153-170
+  s_0aaf32ea8911ac::t_8a67f977238005 30
+  s_0aaf32ea8911ac::t_b5a8072f8c1a85 2,11
+frontend/app.config.js
+  s_0aaf32ea8911ac::t_d6329ee7e40388 6-8
+frontend/app/admin.tsx
+  s_0aaf32ea8911ac::t_f2d482031fff62 8,113-115,130-136,164-166,170-174,191-193,232-236,238-243,251-261
+  s_0aaf32ea8911ac::t_fc9cd91ee7f834 875-881
+frontend/components/PaywallGate.tsx
+  s_0aaf32ea8911ac::t_d6329ee7e40388 10,21
+frontend/app/settings.tsx
+  s_0aaf32ea8911ac::t_c5c27f1d93ffb5 19,40,108-119,222-224,235-237,251
+  s_0aaf32ea8911ac::t_23440320a668b6 255
+frontend/app/paywall.tsx
+  s_0aaf32ea8911ac::t_d5120da5394211 12,43-77
+frontend/app/chat.tsx
+  s_0aaf32ea8911ac::t_6f66be606b4799 1,12,19,23-42,47-49,61-66,78
+  s_0aaf32ea8911ac::t_8f020819070528 43-46
+frontend/app/drills.tsx
+  s_0aaf32ea8911ac::t_7bd682ef2b9246 9,143-153
+frontend/lib/local-state.ts
+  s_0aaf32ea8911ac::t_82a1b826dc0666 116,270
+  s_0aaf32ea8911ac::t_b355071d4fbcca 1-115,117-269,271-495
+frontend/app/roleplay-session.tsx
+  s_0aaf32ea8911ac::t_e2f55c528167fc 142-144,146
+  s_0aaf32ea8911ac::t_b830c32b637ac1 50,52-53
+  s_0aaf32ea8911ac::t_8cdec6f5496a79 1,11,24-28,34-45,48,82-84,86-87,122-125,129
+  s_0aaf32ea8911ac::t_ff4084a85f0d7d 16-17,29-33,46,49,51,54-55,66,77,80,85,88,101,126-128
+frontend/lib/build.ts
+  s_0aaf32ea8911ac::t_b355071d4fbcca 1-28
+frontend/app/resources.tsx
+  s_0aaf32ea8911ac::t_335ba234236b93 2,6,10,25,31-41,47-80,154-172
+frontend/app/eligibility.tsx
+  s_0aaf32ea8911ac::t_301df94af85dcc 1,12,25-26,191
+  s_0aaf32ea8911ac::t_96e8ceba004616 99-110
+  s_0aaf32ea8911ac::t_6b8914fdff09d3 72-98,111-120,149-154,181-190
+  s_0aaf32ea8911ac::t_285b2b8e8dc755 226-231,249
+frontend/app/knowledge.tsx
+  s_0aaf32ea8911ac::t_afecf99c4b9dd1 33
+  s_0aaf32ea8911ac::t_688a491fabc4a7 2,6,8,16,25-28,31-32,34-42,107-114
+frontend/lib/subscription.ts
+  s_0aaf32ea8911ac::t_d6329ee7e40388 4,28-37,48-51,82
+frontend/app/(tabs)/more.tsx
+  s_0aaf32ea8911ac::t_178a0826057a71 1,10-11,33,47-49,53,60-66,70-71,77-79,91-97,114-118
+  s_0aaf32ea8911ac::t_52d2795807f92c 50-52,54-59,72-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "70f6506e6c251d46712fcc78518e9e1a2a076851",
+  "prompts": {},
+  "sessions": {
+    "s_0aaf32ea8911ac": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eb780-af70-7121-8fc4-4e6ec7a01dce",
+        "model": "gpt-5.4-mini"
+      },
+      "human_author": "Thordadpool5413 <nick.lynch.coaching@outlook.com>"
+    }
+  }
+}
