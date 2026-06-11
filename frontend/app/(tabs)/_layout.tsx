@@ -3,8 +3,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { palette } from '../../theme';
+import { useSubscription } from '../../lib/subscription';
 
 export default function TabLayout() {
+  const { tier, isActive, trialHoursLeft } = useSubscription();
+  const trialBadge = (tier === 'none' || tier === 'trial') && isActive && trialHoursLeft > 0
+    ? `${trialHoursLeft}h`
+    : undefined;
+
   return (
     <Tabs
       screenOptions={{
@@ -50,6 +56,8 @@ export default function TabLayout() {
         options={{
           title: 'AI Tools',
           tabBarIcon: ({ color, size }) => <Ionicons name="sparkles" size={size} color={color} />,
+          tabBarBadge: trialBadge,
+          tabBarBadgeStyle: { backgroundColor: palette.primary, color: '#fff', fontSize: 10, fontWeight: '800', minWidth: 32 },
         }}
       />
       <Tabs.Screen

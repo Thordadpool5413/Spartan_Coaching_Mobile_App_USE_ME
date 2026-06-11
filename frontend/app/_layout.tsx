@@ -8,9 +8,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { palette } from '../theme';
 
-const ONBOARDING_KEY = 'onboarding_v1_complete';
+const ONBOARDING_KEY     = 'onboarding_v1_complete';
+const TERMS_ACCEPTED_KEY = 'terms_accepted_v1';
 
-function usePaymentDeepLink() {
+function useDeepLinks() {
   const router = useRouter();
 
   useEffect(() => {
@@ -25,6 +26,9 @@ function usePaymentDeepLink() {
           if (sessionId) {
             router.push({ pathname: '/payment-success', params: { session_id: sessionId } } as any);
           }
+        } else if (parsed.hostname === 'subscription-success') {
+          const sessionId = parsed.searchParams.get('session_id') || '';
+          router.push({ pathname: '/subscription-success', params: { session_id: sessionId } } as any);
         }
       } catch {}
     };
@@ -50,23 +54,30 @@ function useNotificationTap() {
   }, [router]);
 }
 
-function useOnboarding() {
+function useFirstLaunchFlow() {
   const router = useRouter();
   useEffect(() => {
     let cancelled = false;
-    AsyncStorage.getItem(ONBOARDING_KEY).then((val) => {
-      if (!cancelled && !val) {
+    (async () => {
+      const [terms, onboarding] = await Promise.all([
+        AsyncStorage.getItem(TERMS_ACCEPTED_KEY),
+        AsyncStorage.getItem(ONBOARDING_KEY),
+      ]);
+      if (cancelled) return;
+      if (!terms) {
+        router.replace('/welcome' as any);
+      } else if (!onboarding) {
         router.replace('/onboarding' as any);
       }
-    });
+    })();
     return () => { cancelled = true; };
   }, [router]);
 }
 
 export default function RootLayout() {
-  usePaymentDeepLink();
+  useDeepLinks();
   useNotificationTap();
-  useOnboarding();
+  useFirstLaunchFlow();
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: palette.bg }}>
@@ -82,6 +93,7 @@ export default function RootLayout() {
             }}
           >
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="welcome" options={{ headerShown: false, gestureEnabled: false }} />
             <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
             <Stack.Screen name="ask" options={{ title: 'Ask a Hospice Expert' }} />
             <Stack.Screen name="chat" options={{ title: 'Coach Chat' }} />

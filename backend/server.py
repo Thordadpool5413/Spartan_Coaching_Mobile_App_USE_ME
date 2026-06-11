@@ -1902,30 +1902,66 @@ def _send_purchase_email(record: dict) -> Optional[str]:
         amount     = record.get("amount") or 0
         currency   = (record.get("currency") or "usd").upper()
         cust_name  = record.get("customer_name") or "(not provided)"
-        cust_email = record.get("customer_email") or "(not provided)"
+        cust_email = record.get("customer_email") or ""
+        cust_email_display = cust_email or "(not provided)"
         notes      = record.get("notes") or "(none)"
         sess       = record.get("session_id", "")
-        html = f"""
+
+        # --- Admin notification (to Nick) ---
+        admin_html = f"""
 <h2>New Coaching Session Booked & Paid</h2>
 <p><strong>Package:</strong> {pkg_name}</p>
 <p><strong>Amount paid:</strong> ${amount:.2f} {currency}</p>
 <hr/>
 <p><strong>Customer name:</strong> {cust_name}</p>
-<p><strong>Customer email:</strong> {cust_email}</p>
+<p><strong>Customer email:</strong> {cust_email_display}</p>
 <p><strong>Notes / prep:</strong></p>
 <p style="white-space: pre-wrap;">{notes}</p>
 <hr/>
 <p style="color:#888;font-size:12px;">Stripe session: {sess}<br/>Reply to this email to coordinate scheduling.</p>
 """
-        kwargs: dict = {
+        admin_kwargs: dict = {
             "from": f"{RESEND_FROM_NAME} <{RESEND_FROM_EMAIL}>",
             "to": [CONTACT_EMAIL],
             "subject": f"New paid coaching booking — {pkg_name}",
-            "html": html,
+            "html": admin_html,
         }
-        if cust_email and "@" in str(cust_email):
-            kwargs["reply_to"] = cust_email
-        resend.Emails.send(kwargs)
+        if cust_email and "@" in cust_email:
+            admin_kwargs["reply_to"] = cust_email
+        resend.Emails.send(admin_kwargs)
+
+        # --- Customer confirmation (to buyer) ---
+        if cust_email and "@" in cust_email:
+            customer_html = f"""
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#0a0a0b;color:#e5e5e5;padding:40px 24px;max-width:600px;margin:0 auto;">
+  <p style="font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#ef4444;margin:0 0 16px;">Spartan Coaching</p>
+  <h1 style="font-size:28px;font-weight:800;color:#fff;margin:0 0 8px;">You&rsquo;re booked.</h1>
+  <p style="color:#a3a3ad;margin:0 0 32px;">Here&rsquo;s a summary of your confirmed session.</p>
+
+  <div style="background:#141417;border:1px solid #26262c;border-radius:16px;padding:24px;margin-bottom:28px;">
+    <p style="font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#a3a3ad;margin:0 0 8px;">Package</p>
+    <p style="font-size:20px;font-weight:800;color:#fff;margin:0 0 16px;">{pkg_name}</p>
+    <p style="font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#a3a3ad;margin:0 0 4px;">Amount Paid</p>
+    <p style="font-size:18px;font-weight:700;color:#10b981;margin:0;">${amount:.2f} {currency}</p>
+  </div>
+
+  <h2 style="font-size:17px;font-weight:700;color:#fff;margin:0 0 12px;">What happens next</h2>
+  <ol style="color:#a3a3ad;padding-left:20px;line-height:1.8;margin:0 0 28px;">
+    <li>Nick will email you within <strong style="color:#e5e5e5;">one business day</strong> to lock in your session time.</li>
+    <li>While you wait, jot down the exact challenge you want to break through.</li>
+    <li>Sharpen up in the Spartan Coaching app — try the Objection Handler or run a Role-Play scenario.</li>
+  </ol>
+
+  <hr style="border:none;border-top:1px solid #26262c;margin:28px 0;"/>
+  <p style="font-size:12px;color:#52525b;margin:0;">Questions? Reply to this email or reach out to <a href="mailto:{CONTACT_EMAIL}" style="color:#ef4444;">{CONTACT_EMAIL}</a></p>
+</div>"""
+            resend.Emails.send({
+                "from": f"{RESEND_FROM_NAME} <{RESEND_FROM_EMAIL}>",
+                "to": [cust_email],
+                "subject": f"Your Spartan Coaching session is confirmed — {pkg_name}",
+                "html": customer_html,
+                "reply_to": CONTACT_EMAIL,
+            })
         return None
     except Exception as exc:
         logger.exception("resend purchase email failed")
@@ -2147,6 +2183,7 @@ async def subscription_checkout(req: SubscriptionCheckoutRequest, request: Reque
             "cancel_url": cancel_url,
             "allow_promotion_codes": True,
             "metadata": {"device_id": device_id or "", "source": "spartan_app"},
+            "subscription_data": {"trial_period_days": 1},
         }
         if stripe_customer_id:
             create_kwargs["customer"] = stripe_customer_id
@@ -2390,21 +2427,27 @@ async def subscription_activate_session(req: ActivateSessionRequest, request: Re
         # Individual Pro subscription
         if not sub_id:
             raise HTTPException(status_code=400, detail="No subscription ID on session.")
+        # Determine if this is a trialing subscription from the expanded sub object
+        _sub_status   = sub_obj.get("status") if isinstance(sub_obj, dict) else getattr(sub_obj, "status", "active")
+        _trial_end_ts = sub_obj.get("trial_end") if isinstance(sub_obj, dict) else getattr(sub_obj, "trial_end", None)
+        _stripe_status   = _sub_status if _sub_status in ("active", "trialing") else "active"
+        _trial_ends_at   = datetime.fromtimestamp(_trial_end_ts, tz=timezone.utc) if _trial_end_ts else None
         async with pool.acquire() as conn:
             await conn.execute(
                 """INSERT INTO subscriptions
-                       (device_id, tier, stripe_customer_id, stripe_subscription_id, stripe_status)
-                   VALUES ($1, 'pro', $2, $3, 'active')
+                       (device_id, tier, stripe_customer_id, stripe_subscription_id, stripe_status, trial_ends_at)
+                   VALUES ($1, 'pro', $2, $3, $4, $5)
                    ON CONFLICT (device_id) DO UPDATE SET
                        tier                   = 'pro',
                        stripe_customer_id     = $2,
                        stripe_subscription_id = $3,
-                       stripe_status          = 'active',
+                       stripe_status          = $4,
+                       trial_ends_at          = COALESCE($5, trial_ends_at),
                        updated_at             = NOW()""",
-                device_id, customer_id, sub_id,
+                device_id, customer_id, sub_id, _stripe_status, _trial_ends_at,
             )
-        logger.info("activate-session: subscription activated device=%s sub=%s", device_id, sub_id)
-        return {"activated": True, "tier": "pro"}
+        logger.info("activate-session: subscription activated device=%s sub=%s status=%s", device_id, sub_id, _stripe_status)
+        return {"activated": True, "tier": "pro", "stripe_status": _stripe_status}
 
 
 @api.post("/webhook/stripe")
@@ -2523,20 +2566,36 @@ async def stripe_webhook(request: Request):
             else:
                 # ---- Individual Pro subscription ----
                 if device_id and customer_id and pool:
+                    # Fetch subscription to capture trialing status and trial_end timestamp
+                    _wh_stripe_status = "active"
+                    _wh_trial_ends_at = None
+                    if sub_id:
+                        try:
+                            _wh_loop = asyncio.get_event_loop()
+                            _wh_sub = await _wh_loop.run_in_executor(
+                                None, lambda: stripe_lib.Subscription.retrieve(sub_id)
+                            )
+                            _wh_stripe_status = _wh_sub.get("status", "active")
+                            _wh_trial_ts = _wh_sub.get("trial_end")
+                            if _wh_trial_ts:
+                                _wh_trial_ends_at = datetime.fromtimestamp(_wh_trial_ts, tz=timezone.utc)
+                        except Exception:
+                            pass
                     async with pool.acquire() as conn:
                         await conn.execute(
                             """INSERT INTO subscriptions
-                                   (device_id, tier, stripe_customer_id, stripe_subscription_id, stripe_status)
-                               VALUES ($1, 'pro', $2, $3, 'active')
+                                   (device_id, tier, stripe_customer_id, stripe_subscription_id, stripe_status, trial_ends_at)
+                               VALUES ($1, 'pro', $2, $3, $4, $5)
                                ON CONFLICT (device_id) DO UPDATE SET
-                                   tier = 'pro',
-                                   stripe_customer_id = $2,
+                                   tier                   = 'pro',
+                                   stripe_customer_id     = $2,
                                    stripe_subscription_id = $3,
-                                   stripe_status = 'active',
-                                   updated_at = NOW()""",
-                            device_id, customer_id, sub_id,
+                                   stripe_status          = $4,
+                                   trial_ends_at          = COALESCE($5, trial_ends_at),
+                                   updated_at             = NOW()""",
+                            device_id, customer_id, sub_id, _wh_stripe_status, _wh_trial_ends_at,
                         )
-                    logger.info("subscription activated: device=%s customer=%s sub=%s", device_id, customer_id, sub_id)
+                    logger.info("subscription activated: device=%s customer=%s sub=%s status=%s", device_id, customer_id, sub_id, _wh_stripe_status)
     elif event_type == "checkout.session.async_payment_failed":
         obj            = event["data"]["object"]
         session_id     = obj.get("id")
@@ -2545,11 +2604,17 @@ async def stripe_webhook(request: Request):
         obj    = event["data"]["object"]
         sub_id = obj.get("id")
         status = obj.get("status", "")
+        _upd_trial_ts   = obj.get("trial_end")
+        _upd_trial_ends = datetime.fromtimestamp(_upd_trial_ts, tz=timezone.utc) if _upd_trial_ts else None
         if sub_id and pool:
             async with pool.acquire() as conn:
                 await conn.execute(
-                    "UPDATE subscriptions SET stripe_status = $1, updated_at = NOW() WHERE stripe_subscription_id = $2",
-                    status, sub_id,
+                    """UPDATE subscriptions
+                       SET stripe_status = $1,
+                           trial_ends_at = COALESCE($2, trial_ends_at),
+                           updated_at    = NOW()
+                       WHERE stripe_subscription_id = $3""",
+                    status, _upd_trial_ends, sub_id,
                 )
                 # Keep team_licenses in sync — deactivate on past_due / unpaid etc.
                 await conn.execute(
