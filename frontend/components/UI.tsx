@@ -201,6 +201,115 @@ export function PhiNotice({ style }: { style?: ViewStyle }) {
   );
 }
 
+// ─── NativeListSection (iOS grouped list) ────────────────────────────────────
+
+export type NativeListRowData = {
+  key?: string;
+  icon?: keyof typeof Ionicons.glyphMap;
+  iconColor?: string;
+  iconBg?: string;
+  title: string;
+  subtitle?: string;
+  onPress?: () => void;
+  showChevron?: boolean;
+  right?: ReactNode;
+  testID?: string;
+};
+
+export function NativeListSection({
+  rows,
+  style,
+}: {
+  rows: NativeListRowData[];
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <View style={[listStyles.section, style]}>
+      {rows.map((row, i) => (
+        <NativeListRow key={row.key ?? row.title} row={row} isLast={i === rows.length - 1} />
+      ))}
+    </View>
+  );
+}
+
+function NativeListRow({ row, isLast }: { row: NativeListRowData; isLast: boolean }) {
+  const hasIcon = !!row.icon;
+  const chevron = row.showChevron !== false && !!row.onPress;
+  return (
+    <Pressable
+      testID={row.testID}
+      onPress={row.onPress}
+      onPressIn={() => {
+        if (row.onPress) Haptics.selectionAsync();
+      }}
+      style={({ pressed }) => [
+        listStyles.row,
+        { backgroundColor: pressed && row.onPress ? palette.bgElev3 : palette.bgElev1 },
+      ]}
+    >
+      {hasIcon ? (
+        <View style={[listStyles.iconWrap, { backgroundColor: row.iconBg ?? palette.primaryTint }]}>
+          <Ionicons name={row.icon!} size={18} color={row.iconColor ?? palette.primary} />
+        </View>
+      ) : null}
+      <View style={{ flex: 1 }}>
+        <Text style={listStyles.rowTitle}>{row.title}</Text>
+        {row.subtitle ? <Text style={listStyles.rowSubtitle}>{row.subtitle}</Text> : null}
+      </View>
+      {row.right ? (row.right as any) : null}
+      {chevron ? <Ionicons name="chevron-forward" size={17} color={palette.textMuted} /> : null}
+      {!isLast ? (
+        <View style={[listStyles.separator, { left: hasIcon ? 58 : spacing.l }]} pointerEvents="none" />
+      ) : null}
+    </Pressable>
+  );
+}
+
+const listStyles = StyleSheet.create({
+  section: {
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: palette.cardBorder,
+    borderTopColor: palette.glassEdgeTop,
+    backgroundColor: palette.bgElev1,
+    overflow: 'hidden',
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.m,
+    paddingVertical: 13,
+    paddingHorizontal: spacing.l,
+    minHeight: 56,
+  },
+  iconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowTitle: {
+    color: palette.text,
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: -0.2,
+  },
+  rowSubtitle: {
+    color: palette.textDim,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 2,
+  },
+  separator: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: palette.divider,
+  },
+});
+
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({

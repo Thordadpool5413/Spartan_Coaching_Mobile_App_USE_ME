@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ScrollView, View, Pressable, StyleSheet, TextInput, ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { palette, radius, spacing, typography } from '../../theme';
-import { Card, PrimaryButton, GhostButton, H1, H2, H3, Body, Small, SectionLabel } from '../../components/UI';
+import { Card, PrimaryButton, GhostButton, H1, H2, H3, Body, Small, SectionLabel, NativeListSection } from '../../components/UI';
 import { submitContact } from '../../lib/api';
 import { clearContactDraft, loadContactDraft, recordActivity, saveContactDraft } from '../../lib/local-state';
 import { getBuildVariant, isBetaUnlockEnabled } from '../../lib/build';
@@ -29,6 +29,7 @@ const NAV = [
 
 export default function MoreTab() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ interest?: string; message?: string }>();
   const hydratedRef = useRef(false);
   const [form, setForm] = useState({
@@ -105,7 +106,7 @@ export default function MoreTab() {
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: palette.bg }}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 24, padding: spacing.l }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 73, padding: spacing.l }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.m, marginBottom: spacing.l }}>
           <Image source={SPARTAN_LOGO} style={{ width: 80, height: 56 }} resizeMode="contain" />
           <View style={{ flex: 1 }}>
@@ -119,18 +120,15 @@ export default function MoreTab() {
           </View>
         </View>
 
-        {NAV.map((n) => (
-          <Pressable
-            key={n.route}
-            testID={`more-nav-${n.route.replace('/', '')}`}
-            onPress={() => router.push(n.route as any)}
-            style={({ pressed }) => [styles.navRow, { opacity: pressed ? 0.85 : 1 }]}
-          >
-            <Ionicons name={n.icon} size={22} color={palette.primary} />
-            <Body style={{ flex: 1, fontWeight: '600' }}>{n.title}</Body>
-            <Ionicons name="chevron-forward" size={18} color={palette.textMuted} />
-          </Pressable>
-        ))}
+        <NativeListSection
+          rows={NAV.map((n) => ({
+            key: n.route,
+            testID: `more-nav-${n.route.replace('/', '')}`,
+            icon: n.icon,
+            title: n.title,
+            onPress: () => router.push(n.route as any),
+          }))}
+        />
 
         {/* Contact Form */}
         <View style={{ marginTop: spacing.xxl }}>
@@ -223,17 +221,6 @@ function Field({
 }
 
 const styles = StyleSheet.create({
-  navRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.m,
-    padding: spacing.l,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: palette.cardBorder,
-    backgroundColor: palette.bgElev1,
-    marginBottom: spacing.s,
-  },
   input: {
     backgroundColor: palette.bgElev2,
     borderColor: palette.cardBorderStrong,
