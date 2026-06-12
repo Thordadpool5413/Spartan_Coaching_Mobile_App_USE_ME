@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, View, Pressable, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScrollView, View, Pressable, ActivityIndicator, RefreshControl } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { palette, radius, spacing } from '../../theme';
-import { H1, H3, Body, Small, SectionLabel, Card, GhostButton } from '../../components/UI';
+import { palette, spacing } from '../../theme';
+import { H1, H3, Body, Small, SectionLabel, Card, GhostButton, NativeListSection } from '../../components/UI';
 import { getArticles, Article } from '../../lib/api';
 
 const ITEMS = [
@@ -15,6 +14,7 @@ const ITEMS = [
 
 export default function LearnTab() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -37,7 +37,7 @@ export default function LearnTab() {
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: palette.bg }}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 24, padding: spacing.l }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 73, padding: spacing.l }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={palette.primary} />}
@@ -48,23 +48,17 @@ export default function LearnTab() {
           Field-tested resources to sharpen clinical fluency, sales execution, and daily habits.
         </Body>
 
-        {ITEMS.map((t) => (
-          <Pressable
-            key={t.route}
-            testID={`learn-${t.route.replace('/', '')}`}
-            onPress={() => router.push(t.route as any)}
-            style={({ pressed }) => [styles.row, { opacity: pressed ? 0.85 : 1 }]}
-          >
-            <View style={styles.iconWrap}>
-              <Ionicons name={t.icon} size={22} color={palette.primary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <H3 style={{ fontSize: 17, marginBottom: 4 }}>{t.title}</H3>
-              <Small dim>{t.desc}</Small>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={palette.textMuted} />
-          </Pressable>
-        ))}
+        <NativeListSection
+          style={{ marginBottom: spacing.xxl }}
+          rows={ITEMS.map((t) => ({
+            key: t.route,
+            testID: `learn-${t.route.replace('/', '')}`,
+            icon: t.icon,
+            title: t.title,
+            subtitle: t.desc,
+            onPress: () => router.push(t.route as any),
+          }))}
+        />
 
         <SectionLabel>Field Notes</SectionLabel>
         <H3 style={{ marginBottom: spacing.l }}>Recent perspective from Nick Lynch</H3>
@@ -106,27 +100,3 @@ export default function LearnTab() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.m,
-    padding: spacing.l,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: palette.cardBorder,
-    backgroundColor: palette.bgElev1,
-    marginBottom: spacing.m,
-  },
-  iconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: palette.primaryTint,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.3)',
-  },
-});

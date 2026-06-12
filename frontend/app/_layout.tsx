@@ -74,6 +74,15 @@ function useFirstLaunchFlow() {
   }, [router]);
 }
 
+const SHARED_HEADER = {
+  headerStyle: { backgroundColor: palette.bg },
+  headerTintColor: palette.primary,
+  headerTitleStyle: { color: palette.text, fontWeight: '700' as const, fontSize: 17 },
+  headerShadowVisible: false,
+  headerBackButtonDisplayMode: 'minimal' as const,
+  contentStyle: { backgroundColor: palette.bg },
+} as const;
+
 export default function RootLayout() {
   useDeepLinks();
   useNotificationTap();
@@ -83,18 +92,12 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: palette.bg }}>
       <SafeAreaProvider>
         <View style={{ flex: 1, backgroundColor: palette.bg }}>
-          <Stack
-            screenOptions={{
-              headerStyle: { backgroundColor: palette.bg },
-              headerTintColor: palette.text,
-              headerTitleStyle: { color: palette.text, fontWeight: '800' },
-              contentStyle: { backgroundColor: palette.bg },
-              headerShadowVisible: false,
-            }}
-          >
+          <Stack screenOptions={SHARED_HEADER}>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="welcome" options={{ headerShown: false, gestureEnabled: false }} />
             <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
+
+            {/* Standard push screens */}
             <Stack.Screen name="ask" options={{ title: 'Ask a Hospice Expert' }} />
             <Stack.Screen name="chat" options={{ title: 'Coach Chat' }} />
             <Stack.Screen name="objection" options={{ title: 'Objection Handler' }} />
@@ -111,14 +114,25 @@ export default function RootLayout() {
             <Stack.Screen name="eligibility" options={{ title: 'Eligibility Quick Check' }} />
             <Stack.Screen name="settings" options={{ title: 'Settings & Notifications' }} />
             <Stack.Screen name="admin" options={{ title: 'Admin' }} />
-            <Stack.Screen name="payment-success" options={{ title: 'Booking Confirmation' }} />
             <Stack.Screen name="testimonials" options={{ title: 'Success Stories' }} />
             <Stack.Screen name="articles" options={{ title: 'Articles & Insights' }} />
-            <Stack.Screen name="article-detail" options={{ headerShown: false }} />
             <Stack.Screen name="podcasts" options={{ title: 'Spartan Podcast' }} />
             <Stack.Screen name="resources" options={{ title: 'Resource Library' }} />
             <Stack.Screen name="programs" options={{ title: 'Training Programs' }} />
-            <Stack.Screen name="legal" options={{ title: 'Legal & Compliance' }} />
+
+            {/* Modal presentations — sheet up from bottom */}
+            <Stack.Screen
+              name="payment-success"
+              options={{ title: 'Booking Confirmation', presentation: 'modal', headerShown: false }}
+            />
+            <Stack.Screen
+              name="legal"
+              options={{ title: 'Legal & Compliance', presentation: 'modal' }}
+            />
+            <Stack.Screen
+              name="article-detail"
+              options={{ headerShown: false, presentation: 'modal' }}
+            />
           </Stack>
           <StatusBar style="light" />
         </View>

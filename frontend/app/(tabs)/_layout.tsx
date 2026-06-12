@@ -2,14 +2,19 @@ import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { palette } from '../../theme';
 import { useSubscription } from '../../lib/subscription';
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
   const { tier, isActive, trialHoursLeft } = useSubscription();
   const trialBadge = (tier === 'none' || tier === 'trial') && isActive && trialHoursLeft > 0
     ? `${trialHoursLeft}h`
     : undefined;
+
+  const TAB_HEIGHT = 49;
+  const tabBarHeight = TAB_HEIGHT + insets.bottom;
 
   return (
     <Tabs
@@ -17,30 +22,31 @@ export default function TabLayout() {
         headerShown: false,
         tabBarHideOnKeyboard: true,
         tabBarStyle: {
+          position: 'absolute',
           backgroundColor: 'transparent',
           borderTopColor: palette.glassEdge,
           borderTopWidth: StyleSheet.hairlineWidth,
-          paddingTop: 6,
-          paddingBottom: 6,
-          height: 64,
+          height: tabBarHeight,
+          paddingBottom: insets.bottom,
+          paddingTop: 8,
         },
         tabBarBackground: () => (
           <BlurView
-            intensity={70}
+            intensity={80}
             tint="dark"
             style={[StyleSheet.absoluteFill, { backgroundColor: palette.glassBg }]}
           />
         ),
         tabBarActiveTintColor: palette.primary,
         tabBarInactiveTintColor: palette.textMuted,
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '700', letterSpacing: 0.3 },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '600', letterSpacing: 0.2, marginTop: 2 },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color, size }) => <Ionicons name="flame" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -56,21 +62,21 @@ export default function TabLayout() {
           title: 'AI Tools',
           tabBarIcon: ({ color, size }) => <Ionicons name="sparkles" size={size} color={color} />,
           tabBarBadge: trialBadge,
-          tabBarBadgeStyle: { backgroundColor: palette.primary, color: '#fff', fontSize: 10, fontWeight: '800', minWidth: 32 },
+          tabBarBadgeStyle: { backgroundColor: palette.primary, color: '#fff', fontSize: 10, fontWeight: '800', minWidth: 28 },
         }}
       />
       <Tabs.Screen
         name="learn"
         options={{
           title: 'Learn',
-          tabBarIcon: ({ color, size }) => <Ionicons name="library" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="book" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="more"
         options={{
           title: 'More',
-          tabBarIcon: ({ color, size }) => <Ionicons name="ellipsis-horizontal" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="ellipsis-horizontal-circle" size={size} color={color} />,
         }}
       />
     </Tabs>
