@@ -1,0 +1,22 @@
+"OneDrive/Documents/New project/HospiceRoadmapBackend/Hospice-Roadmap/artifacts/api-server/src/intelligence/hospice/characterProfiles.ts"
+  s_4dd6ce9d67e608::t_621ab6c30470b4 296-347
+"OneDrive/Documents/New project/HospiceRoadmapBackend/Hospice-Roadmap/artifacts/api-server/src/routes/anthropic/index.ts"
+  s_4dd6ce9d67e608::t_15ac5bde6c5229 613-615
+  s_4dd6ce9d67e608::t_6d3542ce6ec784 624
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "374db270a8ea6783cc7487fdebf1dc43cef66b09",
+  "prompts": {},
+  "sessions": {
+    "s_4dd6ce9d67e608": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "55cc4203-2362-432c-9323-e9946683cd1f",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Thordadpool5413 <nick.lynch.coaching@outlook.com>"
+    }
+  }
+}
