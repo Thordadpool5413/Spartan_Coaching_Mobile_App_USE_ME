@@ -16,11 +16,11 @@ export function getBackendUrl() {
 }
 
 export function isBetaUnlockEnabled() {
-  return getExtra().betaUnlock !== false;
+  return getExtra().betaUnlock === true;
 }
 
 export function getAdminToken() {
-  return getExtra().adminToken ?? 'spartan-admin';
+  return getExtra().adminToken ?? '';
 }
 
 export function getBuildVariant() {

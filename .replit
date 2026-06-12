@@ -21,7 +21,7 @@ EXPO_PUBLIC_BACKEND_URL = "https://api.spartanhospicecoaching.com"
 STRIPE_PRO_PRICE_ID = "price_1TgVsULsjQz1kEqVOArnb59R"
 STRIPE_TEAM_5_PRICE_ID = "price_1TgWLOLF4JQdUFsUXy3XB8mu"
 STRIPE_TEAM_10_PRICE_ID = "price_1TgWLPLF4JQdUFsUG1WkALt7"
-STRIPE_WEBHOOK_SECRET = "whsec_hTVrurpSvBNEQgAWOiBwR2riX1cEn2Hx"
+EXPO_PUBLIC_BETA_UNLOCK = "1"
 
 [workflows]
 runButton = "Project"

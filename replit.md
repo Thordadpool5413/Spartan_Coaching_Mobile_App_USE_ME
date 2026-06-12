@@ -23,10 +23,12 @@ Two workflows run in this Replit environment:
 | `DATABASE_URL` | Replit secret | PostgreSQL connection |
 | `OPENAI_API_KEY` | Replit secret | AI coaching endpoints |
 | `STRIPE_API_KEY` | Replit secret | Payment checkout |
-| `STRIPE_WEBHOOK_SECRET` | Replit secret | Webhook signature verification |
+| `STRIPE_WEBHOOK_SECRET` | Replit secret **only** — never in shared env | Webhook signature verification |
 | `RESEND_API_KEY` | Replit secret | Transactional email |
 | `ADMIN_TOKEN` | Replit shared env | Admin API access — **change from default before production** |
 | `EXPO_PUBLIC_BACKEND_URL` | Replit shared env | Backend URL injected at build time |
+| `EXPO_PUBLIC_BETA_UNLOCK` | Replit shared env (`"1"` for dev, unset for prod) | Enables paywall bypass in dev builds only |
+| `EXPO_PUBLIC_ADMIN_TOKEN` | Replit shared env (optional, dev only) | Auto-fills admin token in dev; omit in production builds |
 
 ### Key config files
 - `frontend/app.json` — Expo project config (bundle ID, splash, iOS/Android settings)
@@ -120,7 +122,9 @@ Once the domain is verified, update the webhook endpoint URL in Stripe:
 
 ## Production checklist
 
-- [ ] Replace `ADMIN_TOKEN` with a strong random secret (currently defaults to `spartan-admin`)
+- [ ] Replace `ADMIN_TOKEN` with a strong random secret (currently `5413`)
+- [x] `EXPO_PUBLIC_BETA_UNLOCK=1` set in shared env for dev — EAS production builds have no such var, so paywall is enforced
+- [ ] Rotate `STRIPE_WEBHOOK_SECRET` in Stripe Dashboard → Developers → Webhooks → Roll secret, then update the Replit secret
 - [ ] Sign a BAA with OpenAI before going live — platform.openai.com → Settings → Privacy → HIPAA
 - [ ] Host privacy policy at `https://spartanhospicecoaching.com/privacy`
 - [ ] Host Terms of Service at `https://spartanhospicecoaching.com/terms`
