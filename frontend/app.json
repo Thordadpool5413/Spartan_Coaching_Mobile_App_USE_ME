@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.spartancoaching.app",
+      "bundleIdentifier": "com.spartanhospice-coaching.appname",
       "buildNumber": "1",
       "splash": {
         "image": "./assets/images/spartan-logo.png",
@@ -43,7 +43,7 @@
         "foregroundImage": "./assets/images/spartan-logo.png",
         "backgroundColor": "#0a0a0a"
       },
-      "package": "com.spartancoaching.app"
+      "package": "com.spartanhospicecoaching.appname"
     },
     "web": {
       "bundler": "metro",
