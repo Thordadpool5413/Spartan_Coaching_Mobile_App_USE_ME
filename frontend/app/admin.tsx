@@ -111,8 +111,8 @@ function PinPad({
 
 export default function AdminScreen() {
   const betaMode = isBetaUnlockEnabled();
-  const [token, setToken] = useState(betaMode ? getAdminToken() : '');
-  const [authed, setAuthed] = useState(betaMode);
+  const [token, setToken] = useState('');
+  const [authed, setAuthed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [overview, setOverview] = useState<AdminOverview | null>(null);
@@ -129,9 +129,11 @@ export default function AdminScreen() {
   useEffect(() => {
     if (betaMode) {
       const builtInToken = getAdminToken();
-      setToken(builtInToken);
-      loadAll(builtInToken);
-      return;
+      if (builtInToken) {
+        setToken(builtInToken);
+        loadAll(builtInToken);
+        return;
+      }
     }
 
     (async () => {
