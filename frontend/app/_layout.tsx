@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -7,6 +7,7 @@ import { View, Linking, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { palette } from '../theme';
+import CinematicSplash from '../components/CinematicSplash';
 
 const ONBOARDING_KEY     = 'onboarding_v1_complete';
 const TERMS_ACCEPTED_KEY = 'terms_accepted_v1';
@@ -88,6 +89,9 @@ export default function RootLayout() {
   useNotificationTap();
   useFirstLaunchFlow();
 
+  const [showSplash, setShowSplash] = useState(Platform.OS !== 'web');
+  const handleSplashDone = useCallback(() => setShowSplash(false), []);
+
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: palette.bg }}>
       <SafeAreaProvider>
@@ -135,6 +139,7 @@ export default function RootLayout() {
             />
           </Stack>
           <StatusBar style="light" />
+          {showSplash && <CinematicSplash onComplete={handleSplashDone} />}
         </View>
       </SafeAreaProvider>
     </GestureHandlerRootView>
