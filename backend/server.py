@@ -85,6 +85,11 @@ app = FastAPI(title="Spartan Coaching API")
 api = APIRouter(prefix="/api")
 
 
+@app.get("/", include_in_schema=False)
+async def health():
+    return {"status": "ok"}
+
+
 @app.exception_handler(HTTPException)
 async def _http_exc_handler(request: Request, exc: HTTPException):
     """Return flat JSON for 402 subscription errors; standard envelope for everything else."""
