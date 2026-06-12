@@ -1,0 +1,2 @@
+- [Expo SDK56/router gotchas](expo-sdk56-router-gotchas.md) — useFocusEffect must import from expo-router (not @react-navigation); RN7 dropped headerBackTitleVisible, use headerBackButtonDisplayMode.
+- [Replit workflow log snapshots](replit-workflow-logs.md) — /tmp/logs/*.log are stale snapshots (call refresh_all_logs after restart); Metro is CI-mode lazy-bundle, cache at /tmp/metro-cache.
