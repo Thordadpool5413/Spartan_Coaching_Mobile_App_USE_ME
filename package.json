@@ -1,5 +1,9 @@
 {
   "name": "spartan-coaching",
   "private": true,
-  "description": "Spartan Hospice Coaching – root manifest (satisfies deployment package scan)"
+  "description": "Spartan Hospice Coaching – root manifest (satisfies deployment package scan)",
+  "dependencies": {
+    "expo": "^56.0.11",
+    "expo-dev-client": "~56.0.20"
+  }
 }
