@@ -1,0 +1,19 @@
+"OneDrive/Documents/New project/HospiceRoadmapBackend/Hospice-Roadmap/artifacts/api-server/src/routes/anthropic/index.ts"
+  s_4dd6ce9d67e608::t_978097cec76abc 616-617
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "e32dd4c8c8c2bf3559f53f7b1a0fe6665795c83e",
+  "prompts": {},
+  "sessions": {
+    "s_4dd6ce9d67e608": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "55cc4203-2362-432c-9323-e9946683cd1f",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Thordadpool5413 <nick.lynch.coaching@outlook.com>"
+    }
+  }
+}
