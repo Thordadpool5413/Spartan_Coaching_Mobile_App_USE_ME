@@ -1,10 +1,5 @@
 {
   "expo": {
-    "extra": {
-      "eas": {
-        "projectId": "bafdaa6f-80f5-4fb0-baef-324fa376c44c"
-      }
-    },
     "name": "Spartan Coaching",
     "slug": "spartan-coaching",
     "version": "1.0.0",
