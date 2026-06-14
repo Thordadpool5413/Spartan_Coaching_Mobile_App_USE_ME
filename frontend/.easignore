@@ -12,3 +12,15 @@ tmp/
 .env
 .env.*
 !.env.example
+
+# Exclude repo root non-frontend directories
+../backend/
+../scripts/
+../memory/
+../attached_assets/
+../*.py
+../*.md
+../pyproject.toml
+../uv.lock
+../render.yaml
+../proxy.js

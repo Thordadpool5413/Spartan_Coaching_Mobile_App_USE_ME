@@ -25,6 +25,7 @@
         "resourceClass": "m-medium"
       },
       "env": {
+        "EXPO_PUBLIC_BACKEND_URL": "https://api.spartanhospicecoaching.com",
         "EAS_NO_FROZEN_LOCKFILE": "1",
         "EAS_BUILD_DISABLE_NPM_CACHE": "1",
         "npm_config_legacy_peer_deps": "true"

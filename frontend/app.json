@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.thordadpool.spartancoaching",
+      "bundleIdentifier": "com.spartanhospice-coaching.appname",
       "splash": {
         "image": "./assets/images/spartan-logo.png",
         "resizeMode": "contain",
@@ -70,11 +70,6 @@
       "typedRoutes": false
     },
     "extra": {
-      "backendUrl": "https://api.spartanhospicecoaching.com",
-      "betaUnlock": true,
-      "adminToken": "",
-      "buildVariant": "beta",
-      "router": {},
       "eas": {
         "projectId": "bafdaa6f-80f5-4fb0-baef-324fa376c44c"
       }
