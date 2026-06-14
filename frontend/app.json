@@ -1,5 +1,10 @@
 {
   "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "bafdaa6f-80f5-4fb0-baef-324fa376c44c"
+      }
+    },
     "name": "Spartan Coaching",
     "slug": "spartan-coaching",
     "version": "1.0.0",
@@ -15,8 +20,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.spartanhospice-coaching.appname",
-      "buildNumber": "2",
+      "bundleIdentifier": "com.thordadpool.spartancoaching",
       "splash": {
         "image": "./assets/images/spartan-logo.png",
         "resizeMode": "contain",
@@ -49,7 +53,7 @@
         "foregroundImage": "./assets/images/spartan-logo.png",
         "backgroundColor": "#0a0a0a"
       },
-      "package": "com.spartanhospicecoaching.appname"
+      "package": "com.thordadpool.spartancoaching"
     },
     "web": {
       "bundler": "metro",
