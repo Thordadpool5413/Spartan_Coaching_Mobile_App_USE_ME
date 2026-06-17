@@ -55,9 +55,15 @@ function useNotificationTap() {
   }, [router]);
 }
 
-function useFirstLaunchFlow() {
+/**
+ * Runs the first-launch redirect flow only after the splash screen has
+ * finished (splashDone = true). This prevents navigation firing mid-splash
+ * which can cause a visible flash on slower devices.
+ */
+function useFirstLaunchFlow(splashDone: boolean) {
   const router = useRouter();
   useEffect(() => {
+    if (!splashDone) return;
     let cancelled = false;
     (async () => {
       const [terms, onboarding] = await Promise.all([
@@ -72,7 +78,7 @@ function useFirstLaunchFlow() {
       }
     })();
     return () => { cancelled = true; };
-  }, [router]);
+  }, [splashDone, router]);
 }
 
 const SHARED_HEADER = {
@@ -87,10 +93,16 @@ const SHARED_HEADER = {
 export default function RootLayout() {
   useDeepLinks();
   useNotificationTap();
-  useFirstLaunchFlow();
 
   const [showSplash, setShowSplash] = useState(Platform.OS !== 'web');
-  const handleSplashDone = useCallback(() => setShowSplash(false), []);
+  const [splashDone, setSplashDone] = useState(Platform.OS === 'web');
+
+  const handleSplashDone = useCallback(() => {
+    setShowSplash(false);
+    setSplashDone(true);
+  }, []);
+
+  useFirstLaunchFlow(splashDone);
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: palette.bg }}>
@@ -100,6 +112,20 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="welcome" options={{ headerShown: false, gestureEnabled: false }} />
             <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
+
+            {/* Subscription screens — gesture-locked so users cannot swipe to dismiss */}
+            <Stack.Screen
+              name="paywall"
+              options={{ headerShown: false, gestureEnabled: false, presentation: 'fullScreenModal' }}
+            />
+            <Stack.Screen
+              name="subscription-success"
+              options={{ headerShown: false, gestureEnabled: false, presentation: 'fullScreenModal' }}
+            />
+            <Stack.Screen
+              name="team-checkout"
+              options={{ title: 'Team Plan', gestureEnabled: false }}
+            />
 
             {/* Standard push screens */}
             <Stack.Screen name="ask" options={{ title: 'Ask a Hospice Expert' }} />

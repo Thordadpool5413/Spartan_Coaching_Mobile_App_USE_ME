@@ -7,7 +7,7 @@
     "icon": "./assets/images/spartan-logo.png",
     "scheme": "spartan",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/images/spartan-logo.png",
       "resizeMode": "contain",

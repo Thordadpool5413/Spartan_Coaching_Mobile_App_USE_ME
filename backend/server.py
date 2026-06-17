@@ -2287,8 +2287,11 @@ async def billing_status(session_id: str):
 @api.get("/subscription/status")
 async def subscription_status(request: Request):
     device_id = request.headers.get("X-Device-ID", "")
-    if not device_id or not pool:
-        return {"tier": "none", "trial_ends_at": None, "stripe_status": None, "is_active": True, "trial_hours_left": 0, "company_name": None}
+    if not pool:
+        return {"tier": "none", "trial_ends_at": None, "stripe_status": None, "is_active": True, "trial_hours_left": 24, "company_name": None}
+    if not device_id:
+        # No device ID means the user hasn't made any AI calls yet — treat as pre-trial (24 h available).
+        return {"tier": "none", "trial_ends_at": None, "stripe_status": None, "is_active": True, "trial_hours_left": 24, "company_name": None}
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT tier, trial_ends_at, stripe_status, team_code FROM subscriptions WHERE device_id = $1",
