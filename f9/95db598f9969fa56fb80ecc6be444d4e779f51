@@ -1,0 +1,58 @@
+frontend/app/admin.tsx
+  s_0aaf32ea8911ac::t_7644b5d22de8b1 8,114,131,167-173
+frontend/app.config.js
+  s_3e21752625df0c::t_a208d8f02341c4 5
+frontend/eas.json
+  s_3e21752625df0c::t_1614b6287962fe 12-15,24-27,36-39
+  s_0aaf32ea8911ac::t_7644b5d22de8b1 16,28
+frontend/package.json
+  s_3e21752625df0c::t_bb41a333e74d9c 10-13
+frontend/theme/index.ts
+  s_3e21752625df0c::t_6cf2371e09b6f3 31
+frontend/tsconfig.json
+  s_3e21752625df0c::t_ad1d875c39a08e 5,14-15
+backend/server.py
+  s_0aaf32ea8911ac::t_7644b5d22de8b1 60,1132-1134,1139,1141,1146-1147,1833-1834,2555
+frontend/app.json
+  s_3e21752625df0c::t_5c77749958a507 26-28,33-35,39-41,71-81
+frontend/lib/build.ts
+  s_3e21752625df0c::t_179a47803a2c65 14
+frontend/types/vendor.d.ts
+  s_3e21752625df0c::t_1b43e3a0d05bfc 1-20
+frontend/app/_layout.tsx
+  s_3e21752625df0c::t_549685a540e52f 47
+IOS_DEPLOYMENT.md
+  s_0aaf32ea8911ac::t_c3eba73b7a33e1 82-86,104
+replit.md
+  s_0aaf32ea8911ac::t_c3eba73b7a33e1 27-29,31-32,128
+  s_0aaf32ea8911ac::t_43dd3451769d72 167,188
+frontend/lib/api.ts
+  s_0aaf32ea8911ac::t_7644b5d22de8b1 214-220,224-225,229-230,244,249,254,259
+  s_0aaf32ea8911ac::t_1874322e5e3aa3 443
+.replit
+  s_0aaf32ea8911ac::t_7644b5d22de8b1 19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "f995db598f9969fa56fb80ecc6be444d4e779f51",
+  "prompts": {},
+  "sessions": {
+    "s_0aaf32ea8911ac": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eb780-af70-7121-8fc4-4e6ec7a01dce",
+        "model": "gpt-5.4-mini"
+      },
+      "human_author": "Thordadpool5413 <nick.lynch.coaching@outlook.com>"
+    },
+    "s_3e21752625df0c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ebf15-e08d-7732-9d83-b6528bc7f63e",
+        "model": "gpt-5.4-mini"
+      },
+      "human_author": "Thordadpool5413 <nick.lynch.coaching@outlook.com>"
+    }
+  }
+}
