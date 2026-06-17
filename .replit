@@ -16,12 +16,9 @@ LLM_MODEL = "gpt-4o"
 LLM_MODEL_FAST = "gpt-4o-mini"
 CONTACT_EMAIL = "nick@spartanhospicecoaching.com"
 RESEND_FROM_NAME = "Spartan Coaching"
-ADMIN_TOKEN = "5413"
+BETA_UNLOCK_ENABLED = "1"
 PORT = "8000"
 EXPO_PUBLIC_BACKEND_URL = "https://api.spartanhospicecoaching.com"
-STRIPE_PRO_PRICE_ID = "price_1TgVsULsjQz1kEqVOArnb59R"
-STRIPE_TEAM_5_PRICE_ID = "price_1TgWLOLF4JQdUFsUXy3XB8mu"
-STRIPE_TEAM_10_PRICE_ID = "price_1TgWLPLF4JQdUFsUG1WkALt7"
 EXPO_PUBLIC_BETA_UNLOCK = "1"
 
 [workflows]

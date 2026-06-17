@@ -3,7 +3,6 @@ import Constants from 'expo-constants';
 type AppExtra = {
   backendUrl?: string;
   betaUnlock?: boolean;
-  adminToken?: string;
   buildVariant?: string;
 };
 
@@ -12,15 +11,11 @@ function getExtra(): AppExtra {
 }
 
 export function getBackendUrl() {
-  return getExtra().backendUrl ?? '';
+  return getExtra().backendUrl ?? 'https://api.spartanhospicecoaching.com';
 }
 
 export function isBetaUnlockEnabled() {
   return getExtra().betaUnlock === true;
-}
-
-export function getAdminToken() {
-  return getExtra().adminToken ?? '';
 }
 
 export function getBuildVariant() {

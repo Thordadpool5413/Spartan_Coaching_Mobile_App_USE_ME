@@ -7,7 +7,10 @@
     "ios": "expo start --ios",
     "android": "expo start --android",
     "web": "expo start --web --port 3000",
-    "export": "expo export -p web"
+    "export": "expo export -p web",
+    "typecheck": "tsc --noEmit",
+    "eas:build:ios": "eas build -p ios --profile production",
+    "eas:submit:ios": "eas submit -p ios --profile production"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",

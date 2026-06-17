@@ -9,6 +9,11 @@
       "distribution": "internal",
       "ios": {
         "simulator": true
+      },
+      "env": {
+        "EXPO_PUBLIC_BACKEND_URL": "https://api.spartanhospicecoaching.com",
+        "EXPO_PUBLIC_BETA_UNLOCK": "1",
+        "EXPO_PUBLIC_BUILD_VARIANT": "beta"
       }
     },
     "preview": {
@@ -16,6 +21,11 @@
       "ios": {
         "simulator": false,
         "resourceClass": "m-medium"
+      },
+      "env": {
+        "EXPO_PUBLIC_BACKEND_URL": "https://api.spartanhospicecoaching.com",
+        "EXPO_PUBLIC_BETA_UNLOCK": "1",
+        "EXPO_PUBLIC_BUILD_VARIANT": "beta"
       }
     },
     "production": {
@@ -26,7 +36,8 @@
       },
       "env": {
         "EXPO_PUBLIC_BACKEND_URL": "https://api.spartanhospicecoaching.com",
-        "EXPO_PUBLIC_BUILD_VARIANT": "production",
+        "EXPO_PUBLIC_BETA_UNLOCK": "1",
+        "EXPO_PUBLIC_BUILD_VARIANT": "beta",
         "EAS_NO_FROZEN_LOCKFILE": "1",
         "EAS_BUILD_DISABLE_NPM_CACHE": "1",
         "npm_config_legacy_peer_deps": "true"

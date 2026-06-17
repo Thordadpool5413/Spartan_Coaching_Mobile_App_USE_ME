@@ -57,6 +57,7 @@ CONTACT_EMAIL     = os.environ.get("CONTACT_EMAIL", "nick@spartanhospicecoaching
 LLM_MODEL         = os.environ.get("LLM_MODEL", "gpt-4o")
 LLM_MODEL_FAST    = os.environ.get("LLM_MODEL_FAST", "gpt-4o-mini")
 ADMIN_TOKEN       = os.environ.get("ADMIN_TOKEN", "spartan-admin")
+BETA_UNLOCK_ENABLED = os.environ.get("BETA_UNLOCK_ENABLED", "0") == "1"
 STRIPE_API_KEY          = os.environ.get("STRIPE_API_KEY")
 STRIPE_WEBHOOK_SECRET   = os.environ.get("STRIPE_WEBHOOK_SECRET")
 STRIPE_PRO_PRICE_ID     = os.environ.get("STRIPE_PRO_PRICE_ID")
@@ -1128,17 +1129,22 @@ async def startup():
     resend_status  = "configured" if RESEND_API_KEY else "DISABLED"
     ai_status      = "configured" if OPENAI_API_KEY else "DISABLED"
     stripe_status  = "configured" if STRIPE_API_KEY else "DISABLED"
+    admin_status = "beta-unlocked" if BETA_UNLOCK_ENABLED else (
+        "configured" if ADMIN_TOKEN and ADMIN_TOKEN != "spartan-admin" else "default"
+    )
     logger.info(
         "Spartan API up | DB=%s | AI=%s | Stripe=%s | Resend=%s | Admin=%s",
         "ok" if pool else "UNAVAILABLE",
         ai_status, stripe_status, resend_status,
-        ADMIN_TOKEN[:6] + "…" if ADMIN_TOKEN else "(unset)",
+        admin_status,
     )
-    if not ADMIN_TOKEN or ADMIN_TOKEN == "spartan-admin":
+    if not BETA_UNLOCK_ENABLED and (not ADMIN_TOKEN or ADMIN_TOKEN == "spartan-admin"):
         logger.error(
             "SECURITY: ADMIN_TOKEN is using the default value. "
             "Set a strong random secret in the ADMIN_TOKEN environment variable before going to production."
         )
+    elif BETA_UNLOCK_ENABLED:
+        logger.info("Admin routes are beta-unlocked via BETA_UNLOCK_ENABLED=1.")
     if not STRIPE_WEBHOOK_SECRET:
         logger.warning(
             "STRIPE_WEBHOOK_SECRET is not set — Stripe webhook signature verification is DISABLED. "
@@ -1824,6 +1830,8 @@ async def eligibility_assess(req: EligibilityRequest, request: Request):
 
 # ---------- Admin ----------
 def require_admin(authorization: Optional[str] = Header(default=None)):
+    if BETA_UNLOCK_ENABLED:
+        return True
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing admin token")
     token = authorization.split(" ", 1)[1].strip()
@@ -2544,10 +2552,7 @@ async def team_redeem(req: TeamRedeemRequest, request: Request):
 
 
 @api.get("/admin/team-licenses")
-async def admin_team_licenses(authorization: Optional[str] = Header(None)):
-    token = (authorization or "").removeprefix("Bearer ").strip()
-    if token != ADMIN_TOKEN:
-        raise HTTPException(status_code=403, detail="Forbidden.")
+async def admin_team_licenses(_: bool = Depends(require_admin)):
     if not pool:
         raise HTTPException(status_code=503, detail="Database unavailable.")
     async with pool.acquire() as conn:

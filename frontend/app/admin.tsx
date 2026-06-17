@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { palette, radius, spacing } from '../theme';
 import { Card, PrimaryButton, GhostButton, H2, H3, Body, Small, SectionLabel } from '../components/UI';
-import { getAdminToken, getBuildVariant, isBetaUnlockEnabled } from '../lib/build';
+import { getBuildVariant, isBetaUnlockEnabled } from '../lib/build';
 import {
   adminOverview, adminContacts, adminEligibility, AdminOverview,
   adminCreateArticle, adminUpdateArticle, adminDeleteArticle, adminReorderArticles, getArticles,
@@ -112,7 +112,7 @@ function PinPad({
 export default function AdminScreen() {
   const betaMode = isBetaUnlockEnabled();
   const [token, setToken] = useState('');
-  const [authed, setAuthed] = useState(false);
+  const [authed, setAuthed] = useState(betaMode);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [overview, setOverview] = useState<AdminOverview | null>(null);
@@ -128,12 +128,8 @@ export default function AdminScreen() {
 
   useEffect(() => {
     if (betaMode) {
-      const builtInToken = getAdminToken();
-      if (builtInToken) {
-        setToken(builtInToken);
-        loadAll(builtInToken);
-        return;
-      }
+      loadAll('');
+      return;
     }
 
     (async () => {
@@ -168,7 +164,13 @@ export default function AdminScreen() {
       }
     } catch (err: any) {
       const status = err?.response?.status;
-      setError(status === 401 || status === 403 ? 'Wrong PIN. Try again.' : 'Could not connect. Try again.');
+      setError(
+        betaMode && (status === 401 || status === 403)
+          ? 'Beta admin unlock is disabled on the backend.'
+          : status === 401 || status === 403
+            ? 'Wrong PIN. Try again.'
+            : 'Could not connect. Try again.',
+      );
       if (!betaMode) {
         setAuthed(false);
       } else {

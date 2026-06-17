@@ -23,12 +23,15 @@ Two workflows run in this Replit environment:
 | `DATABASE_URL` | Replit secret | PostgreSQL connection |
 | `OPENAI_API_KEY` | Replit secret | AI coaching endpoints |
 | `STRIPE_API_KEY` | Replit secret | Payment checkout |
-| `STRIPE_WEBHOOK_SECRET` | Replit secret **only** — never in shared env | Webhook signature verification |
+| `STRIPE_WEBHOOK_SECRET` | Replit secret | Webhook signature verification |
+| `STRIPE_PRO_PRICE_ID` | Replit secret | Pro subscription price ID used by checkout |
+| `STRIPE_TEAM_5_PRICE_ID` | Replit secret | 5-seat team subscription price ID |
+| `STRIPE_TEAM_10_PRICE_ID` | Replit secret | 10-seat team subscription price ID |
 | `RESEND_API_KEY` | Replit secret | Transactional email |
-| `ADMIN_TOKEN` | Replit shared env | Admin API access — **change from default before production** |
+| `ADMIN_TOKEN` | Replit secret | Optional fallback if beta unlock is disabled |
+| `BETA_UNLOCK_ENABLED` | Replit shared env | Set to `1` for TestFlight beta-admin mode |
 | `EXPO_PUBLIC_BACKEND_URL` | Replit shared env | Backend URL injected at build time |
-| `EXPO_PUBLIC_BETA_UNLOCK` | Replit shared env (`"1"` for dev, unset for prod) | Enables paywall bypass in dev builds only |
-| `EXPO_PUBLIC_ADMIN_TOKEN` | Replit shared env (optional, dev only) | Auto-fills admin token in dev; omit in production builds |
+| `EXPO_PUBLIC_BETA_UNLOCK` | Replit shared env | Enables the beta admin / paywall bypass in TestFlight builds |
 
 ### Key config files
 - `frontend/app.json` — Expo project config (bundle ID, splash, iOS/Android settings)
@@ -122,8 +125,8 @@ Once the domain is verified, update the webhook endpoint URL in Stripe:
 
 ## Production checklist
 
-- [ ] Replace `ADMIN_TOKEN` with a strong random secret (currently `5413`)
-- [x] `EXPO_PUBLIC_BETA_UNLOCK=1` set in shared env for dev — EAS production builds have no such var, so paywall is enforced
+- [ ] Set all Replit Secrets: `DATABASE_URL`, `OPENAI_API_KEY`, `RESEND_API_KEY`, `STRIPE_API_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRO_PRICE_ID`, `STRIPE_TEAM_5_PRICE_ID`, `STRIPE_TEAM_10_PRICE_ID`
+- [ ] Keep `BETA_UNLOCK_ENABLED=1` and `EXPO_PUBLIC_BETA_UNLOCK=1` for TestFlight beta admins
 - [ ] Rotate `STRIPE_WEBHOOK_SECRET` in Stripe Dashboard → Developers → Webhooks → Roll secret, then update the Replit secret
 - [ ] Sign a BAA with OpenAI before going live — platform.openai.com → Settings → Privacy → HIPAA
 - [ ] Host privacy policy at `https://spartanhospicecoaching.com/privacy`
@@ -161,7 +164,7 @@ via the admin API using any HTTP tool (curl, Postman, Insomnia, etc.).
 
 ```bash
 curl -X POST https://<your-backend-url>/api/admin/articles \
-  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Authorization: Bearer <ADMIN_TOKEN_IF_BETA_UNLOCK_IS_DISABLED>" \
   -H "Content-Type: application/json" \
   -d '{
     "title": "Your Article Title Here",
@@ -182,7 +185,7 @@ curl -X POST https://<your-backend-url>/api/admin/articles \
 
 ```bash
 curl -X PUT https://<your-backend-url>/api/admin/articles/a-real-reason \
-  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Authorization: Bearer <ADMIN_TOKEN_IF_BETA_UNLOCK_IS_DISABLED>" \
   -H "Content-Type: application/json" \
   -d '{
     "title": "The Real Reason Your Hospice Census Is Stuck",

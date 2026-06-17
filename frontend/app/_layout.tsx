@@ -44,7 +44,7 @@ function useNotificationTap() {
   const router = useRouter();
   useEffect(() => {
     if (Platform.OS === 'web') return;
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response: Notifications.NotificationResponse) => {
       const data = response.notification.request.content.data as Record<string, unknown>;
       const url = typeof data?.url === 'string' ? data.url : null;
       if (url === '/drills') {

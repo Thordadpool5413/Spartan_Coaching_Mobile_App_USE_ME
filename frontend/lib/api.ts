@@ -211,18 +211,23 @@ export type AdminOverview = {
   ai_chat: { total: number; last_7_days: number };
 };
 
-export async function adminOverview(token: string) {
-  const { data } = await api.get('/admin/overview', { headers: { Authorization: `Bearer ${token}` } });
+function adminHeaders(token?: string) {
+  const value = token?.trim();
+  return value ? { Authorization: `Bearer ${value}` } : {};
+}
+
+export async function adminOverview(token?: string) {
+  const { data } = await api.get('/admin/overview', { headers: adminHeaders(token) });
   return data as AdminOverview;
 }
 
-export async function adminContacts(token: string) {
-  const { data } = await api.get('/admin/contacts', { headers: { Authorization: `Bearer ${token}` } });
+export async function adminContacts(token?: string) {
+  const { data } = await api.get('/admin/contacts', { headers: adminHeaders(token) });
   return data as { items: any[]; count: number };
 }
 
-export async function adminEligibility(token: string) {
-  const { data } = await api.get('/admin/eligibility', { headers: { Authorization: `Bearer ${token}` } });
+export async function adminEligibility(token?: string) {
+  const { data } = await api.get('/admin/eligibility', { headers: adminHeaders(token) });
   return data as { items: any[]; count: number };
 }
 
@@ -236,22 +241,22 @@ export type ArticlePayload = {
 };
 
 export async function adminCreateArticle(token: string, payload: ArticlePayload) {
-  const { data } = await api.post('/admin/articles', payload, { headers: { Authorization: `Bearer ${token}` } });
+  const { data } = await api.post('/admin/articles', payload, { headers: adminHeaders(token) });
   return data as { id: string; status: string };
 }
 
 export async function adminUpdateArticle(token: string, id: string, payload: ArticlePayload) {
-  const { data } = await api.put(`/admin/articles/${id}`, payload, { headers: { Authorization: `Bearer ${token}` } });
+  const { data } = await api.put(`/admin/articles/${id}`, payload, { headers: adminHeaders(token) });
   return data as { id: string; status: string };
 }
 
 export async function adminDeleteArticle(token: string, id: string) {
-  const { data } = await api.delete(`/admin/articles/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+  const { data } = await api.delete(`/admin/articles/${id}`, { headers: adminHeaders(token) });
   return data as { id: string; status: string };
 }
 
 export async function adminReorderArticles(token: string, order: { id: string; sortOrder: number }[]) {
-  const { data } = await api.patch('/admin/articles/reorder', { order }, { headers: { Authorization: `Bearer ${token}` } });
+  const { data } = await api.patch('/admin/articles/reorder', { order }, { headers: adminHeaders(token) });
   return data as { status: string };
 }
 
@@ -435,6 +440,6 @@ export type TeamLicense = {
 };
 
 export async function adminTeamLicenses(token: string): Promise<{ items: TeamLicense[]; count: number }> {
-  const { data } = await api.get('/admin/team-licenses', { headers: { Authorization: `Bearer ${token}` } });
+  const { data } = await api.get('/admin/team-licenses', { headers: adminHeaders(token) });
   return data as { items: TeamLicense[]; count: number };
 }

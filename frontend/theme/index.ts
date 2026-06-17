@@ -28,6 +28,7 @@ export const palette = {
   successDim: 'rgba(16, 185, 129, 0.15)',
   warn: '#f59e0b',
   warnDim: 'rgba(245, 158, 11, 0.15)',
+  error: '#ef4444',
 
   divider: '#27272a',
   glassEdge: 'rgba(255,255,255,0.07)',

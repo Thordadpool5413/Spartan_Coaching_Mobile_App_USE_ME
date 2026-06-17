@@ -79,7 +79,11 @@ On whichever backend host you choose, set:
 - `RESEND_FROM_EMAIL=noreply@spartanhospicecoaching.com` (after domain verification)
 - `RESEND_FROM_NAME=Spartan Coaching`
 - `CONTACT_EMAIL=nick@spartanhospicecoaching.com`
-- `ADMIN_TOKEN` — strong random secret (currently rotated to a 32-byte URL-safe token; change in `/app/backend/.env`)
+- `BETA_UNLOCK_ENABLED=1` — keep admin features open for TestFlight beta users
+- `ADMIN_TOKEN` — optional fallback if you later disable beta unlock; keep it server-side only
+- `STRIPE_PRO_PRICE_ID` — Stripe price ID for the Pro subscription
+- `STRIPE_TEAM_5_PRICE_ID` — Stripe price ID for the 5-seat team subscription
+- `STRIPE_TEAM_10_PRICE_ID` — Stripe price ID for the 10-seat team subscription
 - `CORS_ALLOWED_ORIGINS` — comma-separated list of origins, e.g. `https://app.spartanhospicecoaching.com,https://admin.spartanhospicecoaching.com`
 
 ## Custom App Store assets you'll need
@@ -97,7 +101,7 @@ On whichever backend host you choose, set:
 - OpenAI: pay-as-you-go via Emergent LLM key
 
 ## Production hardening checklist
-- [x] `ADMIN_TOKEN` rotated to a 32-byte URL-safe secret (`JvAvVYHsxECbQDWzXttacXQAKcRlUrMnGkx3--UTS1o`). Rotate again before going live.
+- [x] Client no longer bundles the admin token; beta unlock is controlled by `BETA_UNLOCK_ENABLED`
 - [x] CORS restricted via `CORS_ALLOWED_ORIGINS` env var — currently set to the preview domain + localhost. Update to your production domain(s) before launch.
 - [x] Resend `from` address is configurable via `RESEND_FROM_EMAIL` / `RESEND_FROM_NAME` env vars (currently `onboarding@resend.dev` — see Resend Domain Verification below).
 - [ ] Migrate MongoDB to Atlas (see MongoDB Atlas Migration below)

@@ -303,7 +303,6 @@ export default function ServicesScreen() {
         window.location.href = url;
       } else {
         setBookOpen(false);
-        const WebBrowser = await import('expo-web-browser');
         const result = await WebBrowser.openAuthSessionAsync(url, 'spartan://payment-success');
         // Only treat as a successful payment return when the redirect URL explicitly
         // points to payment-success AND carries a session_id.  Stripe's cancel_url
